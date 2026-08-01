@@ -285,6 +285,7 @@ tbody tr:hover{background:#F7F9FD;}
 
 /* ---------- Login ---------- */
 .login-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+.screen.active.login-screen{display:flex;}
 .login-card{
   width:100%; max-width:400px; background:var(--card); border:1px solid var(--line);
   border-radius:16px; box-shadow:var(--shadow); padding:34px 32px 28px 32px;
