@@ -284,7 +284,7 @@ tbody tr:hover{background:#F7F9FD;}
 .grade-input:focus{border-color:var(--ink-faint);}
 
 /* ---------- Login ---------- */
-.login-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+.login-screen{min-height:100vh; display:none; align-items:center; justify-content:center; padding:24px;}
 .screen.active.login-screen{display:flex;}
 .login-card{
   width:100%; max-width:400px; background:var(--card); border:1px solid var(--line);
