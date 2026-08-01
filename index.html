@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>ERP Colegio San Rafael — Sistema académico</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+  <!-- ===================== LOGIN ===================== -->
+  <section class="screen login-screen" id="login">
+    <div class="login-card">
+      <div class="mark">C</div>
+      <h1>Colegio San Rafael</h1>
+      <div class="sub">Sistema académico · Inicia sesión</div>
+      <div class="login-error" id="login-error"></div>
+      <div class="field">
+        <label>Usuario</label>
+        <input id="login-user" autocomplete="username" placeholder="nombre de usuario">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <div class="form-actions">
+        <button class="btn primary" id="login-btn">Entrar</button>
+      </div>
+      <div class="login-hint">
+        Credenciales demo:
+        <code>admin</code>/<code>Admin123!</code> ·
+        <code>secretaria</code>/<code>Secretaria123!</code> ·
+        <code>profesor</code>/<code>Demo123!</code> ·
+        <code>estudiante</code>/<code>Demo123!</code> ·
+        <code>tutor</code>/<code>Demo123!</code>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SHELL ===================== -->
+  <div class="shell" id="shell" style="display:none">
+    <div class="sidebar">
+      <div class="brand">
+        <div class="mark">C</div>
+        <div class="name">Colegio San Rafael</div>
+        <div class="sub">Sistema académico</div>
+      </div>
+      <div class="navtabs" id="navtabs"></div>
+      <div class="sidebar-foot">
+        <div class="user-chip">
+          <div class="av" id="user-av">—</div>
+          <div class="who-wrap">
+            <div class="who" id="user-name">—</div>
+            <div class="role" id="user-role">—</div>
+          </div>
+        </div>
+        <button class="logout-btn" id="logout-btn">Salir del sistema</button>
+      </div>
+    </div>
+
+    <div class="main">
+
+      <section class="screen" id="resumen">
+        <div class="topbar">
+          <div><h1 id="t-resumen">Resumen general</h1><div class="crumbs" id="c-resumen"></div></div>
+          <div class="topbar-actions" id="a-resumen"></div>
+        </div>
+        <div id="b-resumen"></div>
+      </section>
+
+      <section class="screen" id="estudiantes">
+        <div class="topbar">
+          <div><h1 id="t-estudiantes">Estudiantes</h1><div class="crumbs" id="c-estudiantes"></div></div>
+          <div class="topbar-actions" id="a-estudiantes"></div>
+        </div>
+        <div id="b-estudiantes"></div>
+      </section>
+
+      <section class="screen" id="matriculas">
+        <div class="topbar">
+          <div><h1 id="t-matriculas">Matrículas</h1><div class="crumbs" id="c-matriculas"></div></div>
+          <div class="topbar-actions" id="a-matriculas"></div>
+        </div>
+        <div id="b-matriculas"></div>
+      </section>
+
+      <section class="screen" id="notas">
+        <div class="topbar">
+          <div><h1 id="t-notas">Notas</h1><div class="crumbs" id="c-notas"></div></div>
+          <div class="topbar-actions" id="a-notas"></div>
+        </div>
+        <div id="b-notas"></div>
+      </section>
+
+      <section class="screen" id="asistencia">
+        <div class="topbar">
+          <div><h1 id="t-asistencia">Asistencia</h1><div class="crumbs" id="c-asistencia"></div></div>
+          <div class="topbar-actions" id="a-asistencia"></div>
+        </div>
+        <div id="b-asistencia"></div>
+      </section>
+
+      <section class="screen" id="horarios">
+        <div class="topbar">
+          <div><h1 id="t-horarios">Horarios</h1><div class="crumbs" id="c-horarios"></div></div>
+          <div class="topbar-actions" id="a-horarios"></div>
+        </div>
+        <div id="b-horarios"></div>
+      </section>
+
+      <section class="screen" id="pagos">
+        <div class="topbar">
+          <div><h1 id="t-pagos">Pagos</h1><div class="crumbs" id="c-pagos"></div></div>
+          <div class="topbar-actions" id="a-pagos"></div>
+        </div>
+        <div id="b-pagos"></div>
+      </section>
+
+      <section class="screen" id="profesores">
+        <div class="topbar">
+          <div><h1 id="t-profesores">Profesores</h1><div class="crumbs" id="c-profesores"></div></div>
+          <div class="topbar-actions" id="a-profesores"></div>
+        </div>
+        <div id="b-profesores"></div>
+      </section>
+
+      <section class="screen" id="usuarios">
+        <div class="topbar">
+          <div><h1 id="t-usuarios">Usuarios y roles</h1><div class="crumbs" id="c-usuarios"></div></div>
+          <div class="topbar-actions" id="a-usuarios"></div>
+        </div>
+        <div id="b-usuarios"></div>
+      </section>
+
+      <section class="screen" id="configuracion">
+        <div class="topbar">
+          <div><h1 id="t-configuracion">Configuración</h1><div class="crumbs" id="c-configuracion"></div></div>
+          <div class="topbar-actions" id="a-configuracion"></div>
+        </div>
+        <div id="b-configuracion"></div>
+      </section>
+
+      <section class="screen" id="notificaciones">
+        <div class="topbar">
+          <div><h1 id="t-notificaciones">Notificaciones</h1><div class="crumbs" id="c-notificaciones"></div></div>
+          <div class="topbar-actions" id="a-notificaciones"></div>
+        </div>
+        <div id="b-notificaciones"></div>
+      </section>
+
+      <footer class="note" style="display:none" id="page-foot"></footer>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
