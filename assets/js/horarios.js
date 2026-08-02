@@ -59,14 +59,67 @@ function buildGrid(rows, editable) {
   return `<div class="schedule">${html}</div>`;
 }
 
+// ---------- Vista móvil: selector de día + timeline vertical ----------
+const DIAS_CORTOS = { Lunes: 'Lun', Martes: 'Mar', Miércoles: 'Mié', Jueves: 'Jue', Viernes: 'Vie', Sábado: 'Sáb', Domingo: 'Dom' };
+
+function diaHoyCorto() {
+  const i = new Date().getDay();
+  return i === 0 ? 'Dom' : i === 6 ? 'Sáb' : ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'][i - 1];
+}
+
+function timelineHtml(rows, corto, editable) {
+  const diaLargo = Object.keys(DIAS_CORTOS).find((k) => DIAS_CORTOS[k] === corto);
+  const horas = [...new Set(rows.map((r) => r.hora_inicio.slice(0, 5)))].sort();
+  const mapa = {};
+  rows.filter((r) => r.dia === diaLargo).forEach((r) => { mapa[r.hora_inicio.slice(0, 5)] = r; });
+  return horas.map((h) => {
+    const r = mapa[h];
+    if (!r) return `<div class="tslot"><div class="thour">${h}</div><div class="tcard empty"></div></div>`;
+    return `<div class="tslot"><div class="thour">${h}</div>
+      <div class="tcard ${colorMateria(r.materia_nombre)} ${editable ? 'editable' : ''}" data-horario="${r.id}">
+        <b>${esc(r.materia_nombre || '')}</b>
+        <span>${esc(r.profesor_nombre || '')} ${esc(r.profesor_apellido || '')}${r.aula ? ` · ${esc(r.aula)}` : ''}</span>
+      </div></div>`;
+  }).join('');
+}
+
+function buildMobileHorario(rows, editable) {
+  if (!rows.length) return '<div class="empty">Sin bloques de clase en este horario.</div>';
+  const short = ORDEN_DIAS.filter((d) => rows.some((r) => r.dia === d)).map((d) => DIAS_CORTOS[d] || d);
+  const inicial = short.includes(diaHoyCorto()) ? diaHoyCorto() : short[0];
+  return `<div class="daypicker" data-mpick>${short.map((s) =>
+    `<div class="daychip ${s === inicial ? 'active' : ''}" data-d="${s}">${s}</div>`).join('')}</div>
+    <div class="timeline" data-mtimeline>${timelineHtml(rows, inicial, editable)}</div>`;
+}
+
+function eliminarBloque(id) {
+  confirmModal('Eliminar bloque', '¿Eliminar este bloque de clase del horario?',
+    async () => { await api(`/horarios/${id}`, { method: 'DELETE' }); toast('Bloque eliminado'); render(); }, 'Eliminar');
+}
+
+function initMobileHorario(body, rows, editable) {
+  const picker = body.querySelector('[data-mpick]');
+  const timeline = body.querySelector('[data-mtimeline]');
+  if (!picker || !timeline) return;
+  picker.querySelectorAll('.daychip').forEach((c) => {
+    c.addEventListener('click', () => {
+      picker.querySelectorAll('.daychip').forEach((x) => x.classList.toggle('active', x === c));
+      timeline.innerHTML = timelineHtml(rows, c.dataset.d, editable);
+      if (editable) {
+        timeline.querySelectorAll('[data-horario]').forEach((s) => s.addEventListener('click', () => eliminarBloque(s.dataset.horario)));
+      }
+    });
+  });
+}
+
 function renderGrid(body, rows, editable) {
-  body.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:16px;">${buildGrid(rows, editable)}</div></div>`;
+  body.innerHTML = `
+    <div class="panel hor-grid-panel"><div class="panel-body" style="padding-top:16px;">${buildGrid(rows, editable)}</div></div>
+    <div class="panel hor-mobile-panel"><div class="panel-body" style="padding-top:16px;">${buildMobileHorario(rows, editable)}</div></div>`;
   if (editable) {
-    body.querySelectorAll('[data-horario]').forEach((s) => s.addEventListener('click', () => {
-      confirmModal('Eliminar bloque', '¿Eliminar este bloque de clase del horario?',
-        async () => { await api(`/horarios/${s.dataset.horario}`, { method: 'DELETE' }); toast('Bloque eliminado'); render(); }, 'Eliminar');
-    }));
+    body.querySelectorAll('[data-horario]').forEach((s) => s.addEventListener('click', () => eliminarBloque(s.dataset.horario)));
   }
+  initMobileHorario(body, rows, editable);
 }
 
 // ---------- ADMIN / SECRETARIA ----------
