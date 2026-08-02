@@ -8,7 +8,7 @@ import {
 } from './utils.js';
 
 const HOY_INDEX = new Date().getDay(); // 0=Dom..6=Sáb
-const HOY = DAYS_SPANISH[HOY_INDEX === 0 ? 5 : HOY_INDEX === 6 ? 4 : HOY_INDEX - 1];
+const HOY = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][HOY_INDEX];
 const HOY_LABEL = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
 
 function stat(html, cls) {
