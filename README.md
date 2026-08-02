@@ -42,10 +42,10 @@ npm install
 npm start         # http://localhost:3000
 
 cd frontend       # este repositorio
-python3 -m http.server 8080 --directory frontend
+python3 -m http.server 5000
 ```
 
-Abrir `http://localhost:8080`.
+Abrir `http://localhost:5000`.
 
 > No hay build: se sirven los archivos tal cual. La URL del backend se configura **solo** en `frontend/assets/js/config.js`.
 
