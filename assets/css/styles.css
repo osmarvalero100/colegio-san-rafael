@@ -207,6 +207,36 @@ tbody tr:hover{background:#F7F9FD;}
 .chip:hover{border-color:var(--ink-faint);}
 .chip.active{background:var(--ink); color:#fff; border-color:var(--ink);}
 
+/* ---------- Select buscable de grados (filtros) ---------- */
+.filters-grado .search{width:240px;}
+.grado-wrap{display:flex;}
+.grado-chips{display:flex; gap:8px; flex-wrap:wrap;}
+.grado-select{display:none; position:relative;}
+.grado-select-btn{
+  display:flex; align-items:center; gap:6px; font-family:'Inter'; font-size:12.5px; font-weight:600;
+  color:var(--ink-soft); background:#fff; border:1px solid var(--line); border-radius:100px;
+  padding:8px 13px; cursor:pointer; min-height:38px;
+}
+.grado-select-btn:hover{border-color:var(--ink-faint);}
+.grado-select-btn svg{flex-shrink:0; color:var(--ink-faint);}
+.grado-select-pop{
+  position:absolute; top:calc(100% + 6px); left:0; min-width:230px; max-width:280px; z-index:60;
+  background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 30px rgba(20,30,60,.14);
+  padding:8px; display:none;
+}
+.grado-select.open .grado-select-pop{display:block;}
+.grado-select-search{
+  width:100%; box-sizing:border-box; font-family:'Inter'; font-size:13px; color:var(--ink);
+  border:1px solid var(--line); border-radius:8px; padding:8px 10px; outline:none; margin-bottom:6px;
+}
+.grado-select-list{max-height:220px; overflow-y:auto;}
+.grado-opt{padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px; color:var(--ink-soft); font-weight:500;}
+.grado-opt:hover{background:var(--bg);}
+.grado-opt.active{background:var(--ink); color:#fff;}
+.grado-opt.empty{padding:10px; color:var(--ink-faint); font-size:12.5px; cursor:default; text-align:center;}
+.filters-grado.overflow .grado-chips{display:none;}
+.filters-grado.overflow .grado-select{display:block;}
+
 /* ---------- Form controls ---------- */
 .field{display:flex; flex-direction:column; gap:5px;}
 .field label{font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:var(--ink-faint);}
@@ -448,6 +478,12 @@ footer.note{margin-top:10px; font-size:11.5px; color:var(--ink-faint); text-alig
   .filters{flex-wrap:nowrap; overflow-x:auto; padding-bottom:8px; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
   .filters::-webkit-scrollbar{display:none;}
   .chip{flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:9px 15px;}
+  .filters-grado{flex-wrap:wrap; overflow-x:visible;}
+  .filters-grado .search{width:100%;}
+  .filters-grado .grado-wrap{width:100%;}
+  .filters-grado .grado-select{display:block;}
+  .filters-grado .grado-chips{display:none;}
+  .filters-grado .grado-select-btn{width:100%; min-height:44px; justify-content:space-between; border-radius:10px;}
   .mini-tabs{flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
   .mini-tabs::-webkit-scrollbar{display:none;}
   .mini-tab{flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:9px 15px;}

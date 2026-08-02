@@ -10,6 +10,30 @@ import {
 
 let estado = { search: '', gradoId: '', selectedId: null };
 
+// ---------- Select buscable de grados ----------
+function chipsDesbordan(filtros) {
+  const chips = filtros.querySelector('.grado-chips');
+  const search = filtros.querySelector('.search');
+  if (!chips) return false;
+  const prev = chips.style.cssText;
+  chips.style.cssText = 'position:absolute; visibility:hidden; display:flex; flex-wrap:nowrap; white-space:nowrap; width:max-content;';
+  const ancho = chips.scrollWidth;
+  chips.style.cssText = prev;
+  const disponible = filtros.clientWidth - (search ? search.offsetWidth : 0) - 48;
+  return ancho > disponible;
+}
+function revisarFiltroGrado() {
+  document.querySelectorAll('.filters-grado').forEach((f) => {
+    f.classList.toggle('overflow', window.innerWidth > 768 && chipsDesbordan(f));
+  });
+}
+window.addEventListener('resize', () => { clearTimeout(revisarFiltroGrado._t); revisarFiltroGrado._t = setTimeout(revisarFiltroGrado, 150); });
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.grado-select')) {
+    document.querySelectorAll('.grado-select.open').forEach((el) => el.classList.remove('open'));
+  }
+});
+
 export async function render() {
   const r = rol();
   if (r === 'ADMIN' || r === 'SECRETARIA') return renderGestion();
@@ -42,13 +66,30 @@ async function renderGestion() {
       return;
     }
     crumbs.textContent = `${est.length} estudiantes`;
+    const gs = await grados();
+    const gSel = gs.find((g) => String(g.id) === estado.gradoId);
     listBody.innerHTML = `
-      <div class="filters">
-        <div class="search" style="width:240px;">
+      <div class="filters filters-grado" id="filtros-estudiantes">
+        <div class="search">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="f-buscar" placeholder="Buscar por nombre…" value="${esc(estado.search)}">
         </div>
-        <span class="chip ${!estado.gradoId ? 'active' : ''}" data-grado="">Todos</span>
+        <div class="grado-wrap">
+          <div class="grado-chips" id="grado-chips">
+            <span class="chip ${!estado.gradoId ? 'active' : ''}" data-grado="">Todos</span>
+            ${gs.map((g) => `<span class="chip ${estado.gradoId === String(g.id) ? 'active' : ''}" data-grado="${g.id}">${esc(g.grado)}${esc(g.seccion || '')}</span>`).join('')}
+          </div>
+          <div class="grado-select" id="grado-select">
+            <button type="button" class="grado-select-btn" id="grado-select-btn">
+              <span>${gSel ? `${esc(gSel.grado)}${esc(gSel.seccion ? ' ' + gSel.seccion : '')}` : 'Todos los grados'}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="grado-select-pop" id="grado-select-pop">
+              <input class="grado-select-search" id="grado-select-search" placeholder="Buscar grado…">
+              <div class="grado-select-list" id="grado-select-list"></div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="panel-body" style="padding-top:10px;">
         <table>
@@ -58,13 +99,42 @@ async function renderGestion() {
       </div>`;
 
     // chips de grado
-    const gs = await grados();
-    const chipsHtml = gs.map((g) => `<span class="chip ${estado.gradoId === String(g.id) ? 'active' : ''}" data-grado="${g.id}">${esc(g.grado)}${esc(g.seccion || '')}</span>`).join('');
-    listBody.querySelector('.filters').insertAdjacentHTML('beforeend', chipsHtml);
     listBody.querySelectorAll('.chip[data-grado]').forEach((c) => c.addEventListener('click', () => {
       estado.gradoId = c.dataset.grado === '' ? '' : c.dataset.grado;
       cargar();
     }));
+
+    // select buscable de grados
+    const gradoSelect = listBody.querySelector('#grado-select');
+    const gradoBtn = listBody.querySelector('#grado-select-btn');
+    const gradoSearch = listBody.querySelector('#grado-select-search');
+    const gradoList = listBody.querySelector('#grado-select-list');
+    const buildGradoList = (filtro = '') => {
+      const f = filtro.trim().toLowerCase();
+      const opts = [['', 'Todos los grados']]
+        .concat(gs.map((g) => [String(g.id), `${g.grado}${g.seccion ? ' ' + g.seccion : ''}`]))
+        .filter(([, label]) => !f || label.toLowerCase().includes(f));
+      gradoList.innerHTML = opts.map(([id, label]) =>
+        `<div class="grado-opt ${(id === '' ? !estado.gradoId : estado.gradoId === id) ? 'active' : ''}" data-grado="${id}">${esc(label)}</div>`).join('') ||
+        '<div class="grado-opt empty">Sin resultados</div>';
+    };
+    buildGradoList();
+    gradoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = !gradoSelect.classList.contains('open');
+      gradoSelect.classList.toggle('open', abrir);
+      if (abrir) { gradoSearch.value = ''; buildGradoList(); gradoSearch.focus(); }
+    });
+    gradoSearch.addEventListener('input', () => buildGradoList(gradoSearch.value));
+    gradoList.addEventListener('click', (e) => {
+      const opt = e.target.closest('.grado-opt[data-grado]');
+      if (!opt) return;
+      estado.gradoId = opt.dataset.grado === '' ? '' : opt.dataset.grado;
+      gradoSelect.classList.remove('open');
+      cargar();
+    });
+
+    revisarFiltroGrado();
     listBody.querySelector('#f-buscar').addEventListener('input', (e) => {
       estado.search = e.target.value;
       clearTimeout(estado._t);
