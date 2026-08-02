@@ -103,11 +103,11 @@ function filaEstudiante(e) {
   const grado = `${e.grado_nombre || ''}${e.seccion ? ' ' + e.seccion : ''}`;
   return `<tr data-id="${e.id}">
     <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
-    <td>${esc(grado) || '—'}</td>
-    <td>${esc(e.tutor_nombre || '—')}</td>
-    <td class="mono">${esc(e.telefono || '—')}</td>
-    <td>${badgeEstado(e.matricula_estado || 'Sin matrícula')}</td>
-    <td><div class="row-actions">
+    <td data-label="Grado">${esc(grado) || '—'}</td>
+    <td data-label="Tutor">${esc(e.tutor_nombre || '—')}</td>
+    <td class="mono" data-label="Contacto">${esc(e.telefono || '—')}</td>
+    <td data-label="Estado">${badgeEstado(e.matricula_estado || 'Sin matrícula')}</td>
+    <td data-label=""><div class="row-actions">
       <button class="icon-btn" title="Editar" data-edit="${e.id}">✎</button>
       ${rol() === 'ADMIN' ? `<button class="icon-btn danger" title="Eliminar" data-del="${e.id}">✕</button>` : ''}
     </div></td>
@@ -265,9 +265,9 @@ async function renderMisEstudiantes() {
         <thead><tr><th>Estudiante</th><th>Grado</th><th>Matrícula</th><th>Contacto</th></tr></thead>
         <tbody>${est.map((e) => `<tr>
           <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
-          <td>${esc(e.grado)} ${esc(e.seccion || '')}</td>
-          <td>${badgeEstado(e.matricula_estado)}</td>
-          <td class="mono">${esc(e.email || e.telefono || '—')}</td>
+          <td data-label="Grado">${esc(e.grado)} ${esc(e.seccion || '')}</td>
+          <td data-label="Matrícula">${badgeEstado(e.matricula_estado)}</td>
+          <td class="mono" data-label="Contacto">${esc(e.email || e.telefono || '—')}</td>
         </tr>`).join('') || filaVacia()}
         </tbody>
       </table>

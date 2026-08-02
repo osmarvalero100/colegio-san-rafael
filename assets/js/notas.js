@@ -147,13 +147,13 @@ async function renderPlanilla() {
     ).join('') || '<span class="cell-sub">Sin notas</span>';
 
     const celdas = ed ? `
-      <td><input class="grade-input" data-nota value="" type="number" min="1" max="5" step="0.1" placeholder="0.0"></td>
-      <td><input class="grade-input" data-porcentaje value="" type="number" min="0" max="100" step="1" placeholder="0"></td>
-      <td><button class="btn" data-guardar-nota="${f.estudiante.id}">Guardar</button></td>` : '';
+      <td data-label="Nueva nota"><input class="grade-input" data-nota value="" type="number" min="1" max="5" step="0.1" placeholder="0.0"></td>
+      <td data-label="%"><input class="grade-input" data-porcentaje value="" type="number" min="0" max="100" step="1" placeholder="0"></td>
+      <td data-label=""><button class="btn" data-guardar-nota="${f.estudiante.id}">Guardar</button></td>` : '';
     return `<tr>
       <td class="row-flex">${avatar(f.estudiante.nombre, f.estudiante.apellido)}<div><div class="cell-name">${esc(f.estudiante.nombre)} ${esc(f.estudiante.apellido)}</div><div class="cell-sub id-mono">#${f.estudiante.id}</div></div></td>
-      <td>${chips}</td>
-      <td>${gradePill(f.promedio)}</td>
+      <td data-label="Notas">${chips}</td>
+      <td data-label="Promedio">${gradePill(f.promedio)}</td>
       ${celdas}
     </tr>`;
   }

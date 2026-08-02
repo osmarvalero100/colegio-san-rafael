@@ -109,8 +109,8 @@ async function renderToma() {
       const prev = mapa[e.id];
       return `<tr data-eid="${e.id}">
         <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
-        <td>${estadoSelect(prev?.estado || 'Presente', editable)}</td>
-        <td><input data-obs value="${esc(prev?.observaciones || '')}" placeholder="—" style="width:100%;max-width:220px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-family:Inter;font-size:12.5px;color:var(--ink);outline:none;"></td>
+        <td data-label="Estado">${estadoSelect(prev?.estado || 'Presente', editable)}</td>
+        <td data-label="Observación"><input data-obs value="${esc(prev?.observaciones || '')}" placeholder="—" style="width:100%;max-width:220px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-family:Inter;font-size:12.5px;color:var(--ink);outline:none;"></td>
       </tr>`;
     }).join('');
 
@@ -206,9 +206,9 @@ async function renderLectura() {
       const res = await api('/asistencias', { query: { materia_id: materiaId, mes: sel.mes, anio: sel.anio, limit: 400 } });
       const filas = (res.data || []).map((a) => `<tr>
         <td class="row-flex">${avatar(a.estudiante_nombre, a.estudiante_apellido)}<div><div class="cell-name">${esc(a.estudiante_nombre)} ${esc(a.estudiante_apellido)}</div></div></td>
-        <td class="mono">${esc((a.fecha || '').slice(0, 10))}</td>
-        <td>${badgeEstado(a.estado)}</td>
-        <td class="cell-sub">${esc(a.observaciones || '—')}</td>
+        <td class="mono" data-label="Fecha">${esc((a.fecha || '').slice(0, 10))}</td>
+        <td data-label="Estado">${badgeEstado(a.estado)}</td>
+        <td class="cell-sub" data-label="Observación">${esc(a.observaciones || '—')}</td>
       </tr>`).join('') || '<tr><td colspan="4"><div class="empty">Sin registros en este periodo.</div></td></tr>';
       crumbs.textContent = `Consulta por materia y mes · ${materias.find((m) => String(m.id) === materiaId)?.nombre || ''}`;
       body.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:0;overflow-x:auto;">
@@ -236,9 +236,9 @@ async function renderResumenEstudiante(id, mes, anio) {
     ]);
     const filas = (hist.data || []).map((a) => `<tr>
       <td class="cell-name">${esc(a.materia_nombre)}</td>
-      <td class="mono">${esc((a.fecha || '').slice(0, 10))}</td>
-      <td>${badgeEstado(a.estado)}</td>
-      <td class="cell-sub">${esc(a.observaciones || '—')}</td>
+      <td class="mono" data-label="Fecha">${esc((a.fecha || '').slice(0, 10))}</td>
+      <td data-label="Estado">${badgeEstado(a.estado)}</td>
+      <td class="cell-sub" data-label="Obs.">${esc(a.observaciones || '—')}</td>
     </tr>`).join('') || '<tr><td colspan="4"><div class="empty">Sin registros.</div></td></tr>';
     body.innerHTML = `<div class="two-col even">
       <div class="panel"><div class="panel-head"><div><h3>Resumen del mes</h3><div class="hint">${mes}/${anio} · ${res.total} registros</div></div></div>

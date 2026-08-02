@@ -95,17 +95,23 @@ async function cargarCat(key) {
   loading(body);
   try {
     const res = await api(cfg.api, { query: { limit: 500 } });
-    const filas = (res.data || []).map((r) => `<tr>
+    const filas = (res.data || []).map((r) => {
+      const dataTds = cfg.celda(r).map((c, i) => {
+        const l = cfg.columnas[i];
+        return `<td${l ? ` data-label="${esc(l)}"` : ''}>${c}</td>`;
+      }).join('');
+      return `<tr>
       <td class="cell-sub id-mono" style="white-space:nowrap;">#${r.id}</td>
-      ${cfg.celda(r).map((c) => `<td>${c}</td>`).join('')}
+      ${dataTds}
       ${cfg.especial === 'anios'
-        ? `<td><button class="btn mini" data-toggle-anio="${r.id}" data-estado="${r.estado}">${r.estado === 'Activo' ? 'Cerrar' : 'Activar'}</button></td>`
+        ? `<td data-label=""><button class="btn mini" data-toggle-anio="${r.id}" data-estado="${r.estado}">${r.estado === 'Activo' ? 'Cerrar' : 'Activar'}</button></td>`
         : ''}
-      <td><div style="display:flex;gap:6px;justify-content:flex-end;">
+      <td data-label=""><div style="display:flex;gap:6px;justify-content:flex-end;">
         <button class="btn mini" data-editar="${r.id}">Editar</button>
         <button class="btn mini danger" data-eliminar="${r.id}">✕</button>
       </div></td>
-    </tr>`).join('') || '<tr><td colspan="10"><div class="empty">Sin registros.</div></td></tr>';
+    </tr>`;
+    }).join('') || '<tr><td colspan="10"><div class="empty">Sin registros.</div></td></tr>';
     const head = `<tr><th>ID</th>${cfg.columnas.map((c) => `<th>${esc(c)}</th>`).join('')}<th></th></tr>`;
     body.innerHTML = `<div style="overflow-x:auto;"><table><thead>${head}</thead><tbody>${filas}</tbody></table></div>`;
     body.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirFormCat(key, Number(b.dataset.editar))));

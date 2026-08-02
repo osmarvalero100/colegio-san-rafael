@@ -62,11 +62,11 @@ function filaMatricula(m) {
     : badgeEstado(m.estado);
   return `<tr>
     <td class="row-flex">${avatarInitials(m)}<div><div class="cell-name">${esc(m.estudiante_nombre)} ${esc(m.estudiante_apellido)}</div><div class="cell-sub id-mono">#${m.id}</div></div></td>
-    <td>${esc(m.grado)} ${esc(m.seccion || '')}</td>
-    <td class="mono">${esc(m.anio)}</td>
-    <td class="mono">${esc((m.fecha_matricula || '').slice(0, 10))}</td>
-    <td>${select}</td>
-    <td></td>
+    <td data-label="Grado">${esc(m.grado)} ${esc(m.seccion || '')}</td>
+    <td class="mono" data-label="Año">${esc(m.anio)}</td>
+    <td class="mono" data-label="Fecha matrícula">${esc((m.fecha_matricula || '').slice(0, 10))}</td>
+    <td data-label="Estado">${select}</td>
+    <td data-label=""></td>
   </tr>`;
 }
 

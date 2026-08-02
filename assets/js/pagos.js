@@ -100,13 +100,13 @@ function filaAdmin(p) {
   return `<tr>
     <td><div class="cell-name">${esc(p.estudiante_nombre)} ${esc(p.estudiante_apellido)}</div>
       <div class="cell-sub">${esc(p.grado || '')} ${esc(p.seccion || '')}${p.tutor_nombre ? ` · Tutor: ${esc(p.tutor_nombre)}` : ''}</div></td>
-    <td>${esc(p.concepto_nombre)}<div class="cell-sub id-mono">#${p.id}</div></td>
-    <td class="mono">${esc(p.periodo_referencia || '—')}</td>
-    <td class="mono">${money(p.monto)}</td>
-    <td class="mono">${fmtDate(p.fecha_emision)}</td>
-    <td class="mono">${fmtDate(p.fecha_vencimiento)}</td>
-    <td>${badgeEstado(p.estado)}</td>
-    <td><div style="display:flex;gap:6px;justify-content:flex-end;">${acc.join('')}</div></td>
+    <td data-label="Concepto">${esc(p.concepto_nombre)}<div class="cell-sub id-mono">#${p.id}</div></td>
+    <td class="mono" data-label="Periodo">${esc(p.periodo_referencia || '—')}</td>
+    <td class="mono" data-label="Monto">${money(p.monto)}</td>
+    <td class="mono" data-label="Emisión">${fmtDate(p.fecha_emision)}</td>
+    <td class="mono" data-label="Vence">${fmtDate(p.fecha_vencimiento)}</td>
+    <td data-label="Estado">${badgeEstado(p.estado)}</td>
+    <td data-label=""><div style="display:flex;gap:6px;justify-content:flex-end;">${acc.join('')}</div></td>
   </tr>`;
 }
 
@@ -157,11 +157,11 @@ async function renderHijos() {
 function filaTutor(p) {
   return `<tr>
     <td>${esc(p.concepto_nombre)}<div class="cell-sub id-mono">#${p.id}</div></td>
-    <td class="mono">${esc(p.periodo_referencia || '—')}</td>
-    <td class="mono">${money(p.monto)}</td>
-    <td class="mono">${fmtDate(p.fecha_emision)}</td>
-    <td class="mono">${fmtDate(p.fecha_vencimiento)}</td>
-    <td>${badgeEstado(p.estado)}</td>
+    <td class="mono" data-label="Periodo">${esc(p.periodo_referencia || '—')}</td>
+    <td class="mono" data-label="Monto">${money(p.monto)}</td>
+    <td class="mono" data-label="Emisión">${fmtDate(p.fecha_emision)}</td>
+    <td class="mono" data-label="Vence">${fmtDate(p.fecha_vencimiento)}</td>
+    <td data-label="Estado">${badgeEstado(p.estado)}</td>
   </tr>`;
 }
 

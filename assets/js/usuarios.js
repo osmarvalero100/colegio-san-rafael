@@ -45,10 +45,10 @@ function filaUsuario(u) {
   const [n, a] = (u.persona_nombre || '? ?').split(' ');
   return `<tr>
     <td class="row-flex">${avatar(n, a)}<div><div class="cell-name mono">${esc(u.username)}</div><div class="cell-sub id-mono">#${u.id}</div></div></td>
-    <td>${esc(u.persona_nombre || '—')}</td>
-    <td>${esAdmin ? `<span class="badge purple"><span class="d"></span>${esc(u.rolNombre)}</span>` : `<span class="badge blue"><span class="d"></span>${esc(u.rolNombre)}</span>`}</td>
-    <td><span class="badge green"><span class="d"></span>Activo</span></td>
-    <td><div style="display:flex;gap:6px;justify-content:flex-end;">
+    <td data-label="Vinculado a">${esc(u.persona_nombre || '—')}</td>
+    <td data-label="Rol">${esAdmin ? `<span class="badge purple"><span class="d"></span>${esc(u.rolNombre)}</span>` : `<span class="badge blue"><span class="d"></span>${esc(u.rolNombre)}</span>`}</td>
+    <td data-label="Estado"><span class="badge green"><span class="d"></span>Activo</span></td>
+    <td data-label=""><div style="display:flex;gap:6px;justify-content:flex-end;">
       <button class="btn mini" data-editar="${u.id}">Editar</button>
       <button class="btn mini danger" data-eliminar="${u.id}">✕</button>
     </div></td>

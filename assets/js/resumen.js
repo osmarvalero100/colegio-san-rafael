@@ -36,10 +36,10 @@ function clasesHoyTable(rows) {
     '<th>Hora</th><th>Materia</th><th>Grado</th><th>Docente</th><th>Aula</th>',
     rows.map((h) => `<tr>
       <td class="mono">${fmtTime(h.hora_inicio)}–${fmtTime(h.hora_fin)}</td>
-      <td class="cell-name">${esc(h.materia_nombre)}</td>
-      <td>${esc(h.grado)} ${esc(h.seccion || '')}</td>
-      <td>${esc(h.profesor_nombre || '')} ${esc(h.profesor_apellido || '')}</td>
-      <td class="mono">${esc(h.aula || '—')}</td></tr>`).join('')
+      <td class="cell-name" data-label="Materia">${esc(h.materia_nombre)}</td>
+      <td data-label="Grado">${esc(h.grado)} ${esc(h.seccion || '')}</td>
+      <td data-label="Docente">${esc(h.profesor_nombre || '')} ${esc(h.profesor_apellido || '')}</td>
+      <td class="mono" data-label="Aula">${esc(h.aula || '—')}</td></tr>`).join('')
   );
 }
 
@@ -104,7 +104,7 @@ async function profesorResumen(body) {
       '<button class="btn ghost" data-go="horarios">Mi horario →</button>')}
     ${panel('Mis materias', 'Grupos donde dicto clase',
       table('<th>Materia</th><th>Grado</th>',
-        materias.map((m) => `<tr data-go="notas"><td class="cell-name">${esc(m.nombre)}</td><td>${esc(m.grado)} ${esc(m.seccion || '')}</td></tr>`).join('') || '<tr><td colspan="2"><div class="empty">Sin materias asignadas.</div></td></tr>'))}
+        materias.map((m) => `<tr data-go="notas"><td class="cell-name">${esc(m.nombre)}</td><td data-label="Grado">${esc(m.grado)} ${esc(m.seccion || '')}</td></tr>`).join('') || '<tr><td colspan="2"><div class="empty">Sin materias asignadas.</div></td></tr>'))}
   </div>`;
 }
 
@@ -168,9 +168,9 @@ async function tutorResumen(body) {
     );
     const rows = pagos.slice(0, 5).map((p) => `<tr data-go="pagos">
       <td class="cell-name">${esc(p.concepto_nombre)}</td>
-      <td class="mono">${money(p.monto)}</td>
-      <td class="mono">${esc(p.fecha_vencimiento || '—')}</td>
-      <td>${badgeEstadoLocal(p.estado)}</td></tr>`).join('');
+      <td class="mono" data-label="Monto">${money(p.monto)}</td>
+      <td class="mono" data-label="Vence">${esc(p.fecha_vencimiento || '—')}</td>
+      <td data-label="Estado">${badgeEstadoLocal(p.estado)}</td></tr>`).join('');
     panelBody = panel('Pagos recientes', `${esc(hijo.nombre)} ${esc(hijo.apellido)}`,
       table('<th>Concepto</th><th>Monto</th><th>Vence</th><th>Estado</th>', rows || '<tr><td colspan="4"><div class="empty">Sin pagos.</div></td></tr>'));
   } else {

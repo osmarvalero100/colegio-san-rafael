@@ -35,10 +35,10 @@ function filaProfesor(p) {
   const admin = rol() === 'ADMIN';
   return `<tr>
     <td class="row-flex">${avatar(p.nombre, p.apellido)}<div><div class="cell-name">${esc(p.nombre)} ${esc(p.apellido)}</div><div class="cell-sub id-mono">#${p.id}</div></div></td>
-    <td>${esc(p.especialidad)}</td>
-    <td><div class="cell-sub">${esc(p.email || '—')}</div><div class="cell-sub mono">${esc(p.telefono || '')}</div></td>
-    <td>${Number(p.materias_asignadas) > 0 ? `<span class="badge blue"><span class="d"></span>${p.materias_asignadas} materias</span>` : '<span class="cell-sub">Sin asignar</span>'}</td>
-    <td><div style="display:flex;gap:6px;justify-content:flex-end;">
+    <td data-label="Especialidad">${esc(p.especialidad)}</td>
+    <td data-label="Contacto"><div class="cell-sub">${esc(p.email || '—')}</div><div class="cell-sub mono">${esc(p.telefono || '')}</div></td>
+    <td data-label="Materias">${Number(p.materias_asignadas) > 0 ? `<span class="badge blue"><span class="d"></span>${p.materias_asignadas} materias</span>` : '<span class="cell-sub">Sin asignar</span>'}</td>
+    <td data-label=""><div style="display:flex;gap:6px;justify-content:flex-end;">
       <button class="btn mini" data-ver="${p.id}">Ver</button>
       <button class="btn mini" data-editar="${p.id}">Editar</button>
       ${admin ? `<button class="btn mini danger" data-eliminar="${p.id}">✕</button>` : ''}
