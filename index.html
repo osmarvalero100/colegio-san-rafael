@@ -42,6 +42,45 @@
 
   <!-- ===================== SHELL ===================== -->
   <div class="shell" id="shell" style="display:none">
+
+    <!-- ===== Top bar móvil (visible solo ≤768px) ===== -->
+    <header class="mtopbar" id="mtopbar">
+      <div class="left">
+        <button class="hbtn" id="menu-btn" aria-label="Abrir menú">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="brand-mini">
+          <div class="mark">C</div>
+          <div>
+            <div class="name">Colegio San Rafael</div>
+            <div class="sub">Sistema académico</div>
+          </div>
+        </div>
+      </div>
+      <div class="av" id="mtop-av">—</div>
+    </header>
+
+    <!-- ===== Drawer de navegación móvil ===== -->
+    <div class="backdrop" id="mbackdrop"></div>
+    <nav class="drawer" id="mdrawer">
+      <div class="brand">
+        <div class="mark">C</div>
+        <div class="name">Colegio San Rafael</div>
+        <div class="sub">Sistema académico</div>
+      </div>
+      <div class="dnav" id="dnav"></div>
+      <div class="drawer-foot">
+        <button class="logout-btn" id="drawer-logout">Salir del sistema</button>
+        <div class="user-chip">
+          <div class="av" id="drawer-av">—</div>
+          <div class="who-wrap">
+            <div class="who" id="drawer-name">—</div>
+            <div class="role" id="drawer-role">—</div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
     <div class="sidebar">
       <div class="brand">
         <div class="mark">C</div>
@@ -153,6 +192,9 @@
 
       <footer class="note" style="display:none" id="page-foot"></footer>
     </div>
+
+    <!-- ===== Navegación inferior móvil ===== -->
+    <nav class="bottomnav" id="mbottomnav"></nav>
   </div>
 
   <div id="modal-root"></div>
