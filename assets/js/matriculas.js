@@ -129,6 +129,11 @@ export async function render() {
         }
       });
     });
+
+    listBody.querySelectorAll('[data-edit]').forEach((b) => {
+      const m = mats.find((x) => x.id === Number(b.dataset.edit));
+      b.addEventListener('click', () => editarMatricula(m));
+    });
   }
 
   await cargar();
@@ -148,7 +153,9 @@ function filaMatricula(m) {
     <td class="mono" data-label="Año">${esc(m.anio)}</td>
     <td class="mono" data-label="Fecha matrícula">${esc((m.fecha_matricula || '').slice(0, 10))}</td>
     <td data-label="Estado">${select}</td>
-    <td data-label=""></td>
+    <td data-label=""><div class="row-actions">
+      <button class="icon-btn" title="Editar" data-edit="${m.id}">✎</button>
+    </div></td>
   </tr>`;
 }
 
@@ -347,6 +354,85 @@ async function abrirFormMatricula() {
     } catch (err) {
       toast(err.message, 'error');
       btn.disabled = false;
+    }
+  });
+}
+
+async function editarMatricula(m) {
+  if (!m) return;
+  const gs = await grados();
+  let gradoId = String(m.grado_id);
+  const labelInicial = `${esc(m.grado)}${esc(m.seccion ? ' ' + m.seccion : '')}`;
+
+  const body = openModal(`Editar matrícula #${m.id}`, `
+    <div class="form-grid">
+      <div class="field full"><label>Estudiante</label>
+        <div class="readonly-value">${esc(m.estudiante_nombre)} ${esc(m.estudiante_apellido)}</div>
+      </div>
+      <div class="field full"><label>Grado *</label>
+        <div class="grado-select always" id="e-grado-sel">
+          <button type="button" class="grado-select-btn" id="e-grado-btn">
+            <span id="e-grado-label">${labelInicial}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="grado-select-pop">
+            <input class="grado-select-search" id="e-grado-search" placeholder="Buscar grado…">
+            <div class="grado-select-list" id="e-grado-list"></div>
+          </div>
+        </div>
+      </div>
+      <div class="field"><label>Fecha de matrícula</label><input id="e-fecha" type="date" value="${esc((m.fecha_matricula || '').slice(0, 10))}"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" data-cancel>Cancelar</button>
+      <button class="btn primary" data-save>Guardar cambios</button>
+    </div>`);
+
+  const sel = body.querySelector('#e-grado-sel');
+  const btn = body.querySelector('#e-grado-btn');
+  const search = body.querySelector('#e-grado-search');
+  const list = body.querySelector('#e-grado-list');
+  const label = body.querySelector('#e-grado-label');
+  const buildList = (filtro = '') => {
+    const f = filtro.trim().toLowerCase();
+    const opts = gs
+      .map((g) => [String(g.id), `${g.grado}${g.seccion ? ' ' + g.seccion : ''}`])
+      .filter(([, l]) => !f || l.toLowerCase().includes(f));
+    list.innerHTML = opts.map(([id, l]) =>
+      `<div class="grado-opt ${gradoId === id ? 'active' : ''}" data-id="${id}">${esc(l)}</div>`).join('') ||
+      '<div class="grado-opt empty">Sin resultados</div>';
+  };
+  buildList();
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abrir = !sel.classList.contains('open');
+    sel.classList.toggle('open', abrir);
+    if (abrir) { search.value = ''; buildList(); search.focus(); }
+  });
+  search.addEventListener('input', () => buildList(search.value));
+  list.addEventListener('click', (e) => {
+    const opt = e.target.closest('.grado-opt[data-id]');
+    if (!opt) return;
+    gradoId = opt.dataset.id;
+    const g = gs.find((x) => String(x.id) === gradoId);
+    label.textContent = g ? `${g.grado}${g.seccion ? ' ' + g.seccion : ''}` : '';
+    sel.classList.remove('open');
+    buildList();
+  });
+
+  body.querySelector('[data-cancel]').addEventListener('click', closeModal);
+  body.querySelector('[data-save]').addEventListener('click', async () => {
+    if (!gradoId) { toast('Selecciona un grado', 'error'); return; }
+    const btnSave = body.querySelector('[data-save]');
+    btnSave.disabled = true;
+    try {
+      await api(`/matriculas/${m.id}`, { method: 'PUT', body: { grado_id: Number(gradoId), fecha_matricula: formValue('e-fecha') || null } });
+      toast('Matrícula actualizada');
+      closeModal();
+      render();
+    } catch (err) {
+      toast(err.message, 'error');
+      btnSave.disabled = false;
     }
   });
 }

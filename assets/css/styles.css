@@ -403,6 +403,11 @@ tbody tr:hover{background:#F7F9FD;}
 .icon-btn:hover{background:#EDEFF6; color:var(--ink);}
 .icon-btn.danger:hover{background:var(--red); color:#fff; border-color:var(--red);}
 
+.readonly-value{
+  font-size:14px; font-weight:600; color:var(--ink); padding:9px 12px;
+  border:1px solid var(--line); border-radius:9px; background:#F5F6FA;
+}
+
 .toast{
   position:fixed; bottom:22px; right:22px; z-index:80; max-width:340px;
   background:var(--navy-deep); color:#fff; font-size:13px; font-weight:500;
