@@ -2,33 +2,121 @@
 import { api } from './api.js';
 import { rol } from './auth.js';
 import {
-  esc, avatar, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal,
+  esc, avatar, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado,
 } from './utils.js';
+
+let estado = { search: '', materiaId: '' };
 
 export async function render() {
   const { crumbs, actions, body } = screenEls('profesores');
   actions.innerHTML = '<button class="btn primary" id="btn-nuevo-prof">+ Nuevo profesor</button>';
   actions.querySelector('#btn-nuevo-prof').addEventListener('click', () => abrirFormProfesor());
   loading(body);
-  try {
-    const { data: profes } = await api('/profesores', { query: { limit: 300 } });
+
+  const listBody = document.createElement('div');
+  listBody.className = 'panel';
+  body.innerHTML = '';
+  body.appendChild(listBody);
+
+  async function cargar() {
+    const mats = (await api('/materias', { query: { limit: 300 } })).data || [];
+    const query = { limit: 300 };
+    if (estado.search) query.search = estado.search;
+    if (estado.materiaId) query.materia_id = estado.materiaId;
+    let profes = [];
+    try {
+      profes = (await api('/profesores', { query })).data || [];
+    } catch (err) {
+      listBody.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+      return;
+    }
     crumbs.textContent = `${profes.length} docentes`;
+    const mSel = mats.find((m) => String(m.id) === estado.materiaId);
     const filas = profes.map(filaProfesor).join('') ||
       '<tr><td colspan="5"><div class="empty">Sin profesores registrados.</div></td></tr>';
-    body.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:0;">
-      <table>
-        <thead><tr><th>Docente</th><th>Especialidad</th><th>Contacto</th><th>Materias</th><th></th></tr></thead>
-        <tbody>${filas}</tbody>
-      </table>
-    </div></div>`;
-    body.querySelectorAll('[data-ver]').forEach((b) => b.addEventListener('click', () => abrirDetalle(Number(b.dataset.ver))));
-    body.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirFormProfesor(Number(b.dataset.editar))));
+    listBody.innerHTML = `
+      <div class="filters filters-grado" id="filtros-profesores">
+        <div class="search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="pr-buscar" placeholder="Buscar por nombre o email…" value="${esc(estado.search)}">
+        </div>
+        <div class="grado-wrap">
+          <div class="grado-chips">
+            <span class="chip ${!estado.materiaId ? 'active' : ''}" data-materia="">Todas</span>
+            ${mats.map((m) => `<span class="chip ${estado.materiaId === String(m.id) ? 'active' : ''}" data-materia="${m.id}">${esc(m.nombre)}</span>`).join('')}
+          </div>
+          <div class="grado-select" id="pr-materia-sel">
+            <button type="button" class="grado-select-btn" id="pr-materia-btn">
+              <span>${mSel ? esc(mSel.nombre) : 'Todas las materias'}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="grado-select-pop">
+              <input class="grado-select-search" id="pr-materia-search" placeholder="Buscar materia…">
+              <div class="grado-select-list" id="pr-materia-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body" style="padding-top:0;">
+        <table>
+          <thead><tr><th>Docente</th><th>Especialidad</th><th>Contacto</th><th>Materias</th><th></th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>`;
+
+    listBody.querySelectorAll('.chip[data-materia]').forEach((c) => c.addEventListener('click', () => {
+      estado.materiaId = c.dataset.materia === '' ? '' : c.dataset.materia;
+      cargar();
+    }));
+
+    const mSelBox = listBody.querySelector('#pr-materia-sel');
+    const mBtn = listBody.querySelector('#pr-materia-btn');
+    const mSearch = listBody.querySelector('#pr-materia-search');
+    const mList = listBody.querySelector('#pr-materia-list');
+    const mBtnLabel = mBtn.querySelector('span');
+    const buildList = (filtro = '') => {
+      const f = filtro.trim().toLowerCase();
+      const opts = [['', 'Todas las materias']]
+        .concat(mats.map((m) => [String(m.id), m.nombre]))
+        .filter(([, label]) => !f || label.toLowerCase().includes(f));
+      mList.innerHTML = opts.map(([id, label]) =>
+        `<div class="grado-opt ${(id === '' ? !estado.materiaId : estado.materiaId === id) ? 'active' : ''}" data-materia="${id}">${esc(label)}</div>`).join('') ||
+        '<div class="grado-opt empty">Sin resultados</div>';
+    };
+    buildList();
+    mBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = !mSelBox.classList.contains('open');
+      mSelBox.classList.toggle('open', abrir);
+      if (abrir) { mSearch.value = ''; buildList(); mSearch.focus(); }
+    });
+    mSearch.addEventListener('input', () => buildList(mSearch.value));
+    mList.addEventListener('click', (e) => {
+      const opt = e.target.closest('.grado-opt[data-materia]');
+      if (!opt) return;
+      estado.materiaId = opt.dataset.materia === '' ? '' : opt.dataset.materia;
+      const m = mats.find((x) => String(x.id) === estado.materiaId);
+      mBtnLabel.textContent = m ? m.nombre : 'Todas las materias';
+      mSelBox.classList.remove('open');
+      cargar();
+    });
+
+    listBody.querySelector('#pr-buscar').addEventListener('input', (e) => {
+      estado.search = e.target.value;
+      clearTimeout(estado._t);
+      estado._t = setTimeout(cargar, 300);
+    });
+
+    revisarFiltroGrado();
+
+    listBody.querySelectorAll('[data-ver]').forEach((b) => b.addEventListener('click', () => abrirDetalle(Number(b.dataset.ver))));
+    listBody.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirFormProfesor(Number(b.dataset.editar))));
     if (rol() === 'ADMIN') {
-      body.querySelectorAll('[data-eliminar]').forEach((b) => b.addEventListener('click', () => eliminarProfesor(Number(b.dataset.eliminar))));
+      listBody.querySelectorAll('[data-eliminar]').forEach((b) => b.addEventListener('click', () => eliminarProfesor(Number(b.dataset.eliminar))));
     }
-  } catch (err) {
-    body.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
   }
+
+  await cargar();
 }
 
 function filaProfesor(p) {
