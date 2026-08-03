@@ -120,7 +120,7 @@ export async function render() {
     listBody.querySelectorAll('select[data-cambio-estado]').forEach((sel) => {
       sel.addEventListener('change', async () => {
         try {
-          await api(`/matriculas/${sel.dataset.matricula}`, { method: 'PATCH', body: { estado: sel.value } });
+          await api(`/matriculas/${sel.dataset.matricula}/estado`, { method: 'PATCH', body: { estado: sel.value } });
           toast('Estado de matrícula actualizado');
           cargar();
         } catch (err) {
