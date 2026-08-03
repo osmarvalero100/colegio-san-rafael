@@ -7,7 +7,7 @@ import {
   openModal, closeModal, formValue, setOpts, confirmModal, todayISO, currentMonth, currentYear, downloadCSV,
 } from './utils.js';
 
-const sel = { anio: currentYear(), mes: currentMonth(), estado: '' };
+const sel = { anio: currentYear(), mes: currentMonth(), estado: '', search: '' };
 const METODOS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Cheque'];
 
 export async function render() {
@@ -24,6 +24,17 @@ async function renderAdmin() {
   actions.querySelector('#btn-nuevo-cobro').addEventListener('click', () => abrirFormCobro());
   actions.querySelector('#btn-export-pagos').addEventListener('click', () => {
     downloadCSV(`pagos-${sel.anio}-${String(sel.mes).padStart(2, '0')}.csv`, exportRows(sel._filas || []));
+  });
+
+  const buscar = document.createElement('div');
+  buscar.className = 'search';
+  buscar.style.cssText = 'width:220px;';
+  buscar.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="p-buscar" placeholder="Buscar por estudiante…" value="' + esc(sel.search) + '">';
+  actions.insertBefore(buscar, actions.firstChild);
+  buscar.querySelector('#p-buscar').addEventListener('input', (e) => {
+    sel.search = e.target.value;
+    clearTimeout(sel._t);
+    sel._t = setTimeout(cargar, 300);
   });
 
   const mkPicker = (label, el) => {
@@ -58,7 +69,7 @@ async function renderAdmin() {
     loading(body);
     const [res, rows] = await Promise.all([
       api('/pagos/resumen', { query: { anio: sel.anio, mes: sel.mes } }),
-      api('/pagos', { query: { anio: sel.anio, mes: sel.mes, estado: sel.estado || undefined, limit: 500 } }),
+      api('/pagos', { query: { anio: sel.anio, mes: sel.mes, estado: sel.estado || undefined, search: sel.search || undefined, limit: 500 } }),
     ]);
     sel._filas = rows.data || [];
     const mesLabel = new Date(2000, sel.mes - 1, 1).toLocaleDateString('es-CO', { month: 'long' });
