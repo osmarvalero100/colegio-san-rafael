@@ -78,12 +78,50 @@ function avatarInitials(m) {
 async function abrirFormMatricula() {
   const gs = await grados();
   const an = await anios();
+  const tutores = (await api('/tutores', { query: { limit: 200 } })).data || [];
   const estudiantes = (await api('/estudiantes', { query: { limit: 500 } })).data || [];
+  let tipo = 'existente';
+  let estudianteSel = null;
+
   const body = openModal('Nueva matrícula', `
     <div class="form-grid">
-      <div class="field full"><label>Estudiante *</label>
-        <select id="m-estudiante">${estudiantes.map((e) => `<option value="${e.id}">${esc(e.nombre)} ${esc(e.apellido)}${e.grado_nombre ? ` · ${esc(e.grado_nombre)}${esc(e.seccion || '')}` : ''}</option>`).join('')}</select>
+      <div class="field full"><label>Estudiante</label>
+        <div class="mini-tabs">
+          <span class="mini-tab active" data-tipo="existente">Existente</span>
+          <span class="mini-tab" data-tipo="nuevo">Nuevo estudiante</span>
+        </div>
       </div>
+
+      <div class="field full" id="m-ee">
+        <label>Estudiante *</label>
+        <div class="grado-select always" id="m-estudiante-sel">
+          <button type="button" class="grado-select-btn" id="m-estudiante-btn">
+            <span id="m-estudiante-label">Buscar estudiante…</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="grado-select-pop">
+            <input class="grado-select-search" id="m-estudiante-search" placeholder="Buscar por nombre o apellido…">
+            <div class="grado-select-list" id="m-estudiante-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field full" id="m-en" style="display:none">
+        <div class="form-grid">
+          <div class="field"><label>Nombre *</label><input id="m-nombre"></div>
+          <div class="field"><label>Apellido *</label><input id="m-apellido"></div>
+          <div class="field"><label>Fecha de nacimiento</label><input id="m-nac" type="date"></div>
+          <div class="field"><label>Teléfono</label><input id="m-tel"></div>
+          <div class="field full"><label>Email</label><input id="m-mail"></div>
+          <div class="field full"><label>Dirección</label><input id="m-dir"></div>
+          <div class="field full"><label>Tutor</label>
+            <select id="m-tutor"><option value="">— Nuevo tutor —</option>${tutores.map((t) => `<option value="${t.id}">${esc(t.nombre)} · ${esc(t.telefono || '')}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Tutor nuevo — nombre *</label><input id="m-tutor-nombre"></div>
+          <div class="field"><label>Tutor nuevo — teléfono *</label><input id="m-tutor-tel"></div>
+        </div>
+      </div>
+
       <div class="field"><label>Grado *</label>
         <select id="m-grado">${gs.map((g) => `<option value="${g.id}">${esc(g.grado)} ${esc(g.seccion || '')}</option>`).join('')}</select>
       </div>
@@ -96,19 +134,91 @@ async function abrirFormMatricula() {
       <button class="btn" data-cancel>Cancelar</button>
       <button class="btn primary" data-save>Crear matrícula</button>
     </div>`);
+
+  const ee = body.querySelector('#m-ee');
+  const en = body.querySelector('#m-en');
+  const cambiarTipo = (t) => {
+    tipo = t;
+    body.querySelectorAll('.mini-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tipo === t));
+    ee.style.display = t === 'existente' ? 'flex' : 'none';
+    en.style.display = t === 'nuevo' ? 'block' : 'none';
+  };
+  body.querySelectorAll('.mini-tab').forEach((tab) => tab.addEventListener('click', () => cambiarTipo(tab.dataset.tipo)));
+
+  // Select buscable de estudiantes existentes
+  const sel = body.querySelector('#m-estudiante-sel');
+  const btn = body.querySelector('#m-estudiante-btn');
+  const sSearch = body.querySelector('#m-estudiante-search');
+  const sList = body.querySelector('#m-estudiante-list');
+  const sLabel = body.querySelector('#m-estudiante-label');
+  const buildEstList = (filtro = '') => {
+    const f = filtro.trim().toLowerCase();
+    const opts = estudiantes.filter((e) => !f || `${e.nombre} ${e.apellido} ${e.grado_nombre || ''} ${e.seccion || ''}`.toLowerCase().includes(f));
+    sList.innerHTML = opts.map((e) => `
+      <div class="grado-opt ${estudianteSel && estudianteSel.id === e.id ? 'active' : ''}" data-id="${e.id}">
+        ${esc(e.nombre)} ${esc(e.apellido)}${e.grado_nombre ? `<span class="cell-sub" style="color:var(--ink-faint);font-size:11px;"> · ${esc(e.grado_nombre)}${esc(e.seccion || '')}</span>` : ''}
+      </div>`).join('') || '<div class="grado-opt empty">Sin resultados</div>';
+  };
+  buildEstList();
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abrir = !sel.classList.contains('open');
+    sel.classList.toggle('open', abrir);
+    if (abrir) { sSearch.value = ''; buildEstList(); sSearch.focus(); }
+  });
+  sSearch.addEventListener('input', () => buildEstList(sSearch.value));
+  sList.addEventListener('click', (e) => {
+    const opt = e.target.closest('.grado-opt[data-id]');
+    if (!opt) return;
+    estudianteSel = estudiantes.find((es) => String(es.id) === opt.dataset.id);
+    sLabel.textContent = estudianteSel ? `${estudianteSel.nombre} ${estudianteSel.apellido}` : 'Buscar estudiante…';
+    sel.classList.remove('open');
+    buildEstList();
+  });
+
+  // Tutor nuevo cuando se elige en el bloque de estudiante nuevo
+  const tutorSel = body.querySelector('#m-tutor');
+  const showNew = (val) => {
+    body.querySelector('#m-tutor-nombre').closest('.field').style.display = val === '' ? 'flex' : 'none';
+    body.querySelector('#m-tutor-tel').closest('.field').style.display = val === '' ? 'flex' : 'none';
+  };
+  tutorSel.addEventListener('change', () => showNew(tutorSel.value));
+  showNew(tutorSel.value);
+
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
   body.querySelector('[data-save]').addEventListener('click', async () => {
-    const data = {
-      estudiante_id: Number(formValue('m-estudiante')),
-      grado_id: Number(formValue('m-grado')),
-      anio_lectivo_id: Number(formValue('m-anio')),
-      fecha_matricula: formValue('m-fecha') || null,
-    };
-    if (!data.estudiante_id || !data.grado_id || !data.anio_lectivo_id) { toast('Completa los campos obligatorios', 'error'); return; }
+    const grado_id = Number(formValue('m-grado'));
+    const anio_lectivo_id = Number(formValue('m-anio'));
+    if (!grado_id || !anio_lectivo_id) { toast('Completa los campos obligatorios', 'error'); return; }
+    let estudiante_id;
+    if (tipo === 'existente') {
+      if (!estudianteSel) { toast('Selecciona un estudiante', 'error'); return; }
+      estudiante_id = estudianteSel.id;
+    } else {
+      const data = {
+        nombre: formValue('m-nombre'), apellido: formValue('m-apellido'),
+        fecha_nacimiento: formValue('m-nac') || null, telefono: formValue('m-tel') || null,
+        email: formValue('m-mail') || null, direccion: formValue('m-dir') || null,
+      };
+      if (!data.nombre || !data.apellido) { toast('Nombre y apellido son obligatorios', 'error'); return; }
+      const tutorId = tutorSel.value ? Number(tutorSel.value) : null;
+      if (tutorId) data.tutor_id = tutorId;
+      else data.tutor = { nombre: formValue('m-tutor-nombre'), telefono: formValue('m-tutor-tel') };
+      const btn2 = body.querySelector('[data-save]');
+      btn2.disabled = true;
+      try {
+        const creado = await api('/estudiantes', { method: 'POST', body: data });
+        estudiante_id = creado.id;
+      } catch (err) {
+        toast(err.message, 'error');
+        btn2.disabled = false;
+        return;
+      }
+    }
     const btn = body.querySelector('[data-save]');
     btn.disabled = true;
     try {
-      await api('/matriculas', { method: 'POST', body: data });
+      await api('/matriculas', { method: 'POST', body: { estudiante_id, grado_id, anio_lectivo_id, fecha_matricula: formValue('m-fecha') || null } });
       toast('Matrícula creada');
       closeModal();
       render();

@@ -237,6 +237,11 @@ tbody tr:hover{background:#F7F9FD;}
 .filters-grado.overflow .grado-chips{display:none;}
 .filters-grado.overflow .grado-select{display:block;}
 
+/* Select buscable siempre visible (modales: matrícula) */
+.grado-select.always{display:block;}
+.grado-select.always .grado-select-btn{width:100%; justify-content:space-between; border-radius:10px;}
+.grado-select.always .grado-select-pop{min-width:0; width:100%; max-width:none; z-index:65;}
+
 /* ---------- Form controls ---------- */
 .field{display:flex; flex-direction:column; gap:5px;}
 .field label{font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:var(--ink-faint);}
