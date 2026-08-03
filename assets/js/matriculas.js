@@ -164,6 +164,7 @@ async function abrirFormMatricula() {
   const estudiantes = (await api('/estudiantes', { query: { limit: 500 } })).data || [];
   let tipo = 'existente';
   let estudianteSel = null;
+  let tutorSel = null;
 
   const body = openModal('Nueva matrícula', `
     <div class="form-grid">
@@ -197,7 +198,16 @@ async function abrirFormMatricula() {
           <div class="field full"><label>Email</label><input id="m-mail"></div>
           <div class="field full"><label>Dirección</label><input id="m-dir"></div>
           <div class="field full"><label>Tutor</label>
-            <select id="m-tutor"><option value="">— Nuevo tutor —</option>${tutores.map((t) => `<option value="${t.id}">${esc(t.nombre)} · ${esc(t.telefono || '')}</option>`).join('')}</select>
+            <div class="grado-select always" id="m-tutor-sel">
+              <button type="button" class="grado-select-btn" id="m-tutor-btn">
+                <span id="m-tutor-label">— Nuevo tutor —</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="grado-select-pop">
+                <input class="grado-select-search" id="m-tutor-search" placeholder="Buscar tutor…">
+                <div class="grado-select-list" id="m-tutor-list"></div>
+              </div>
+            </div>
           </div>
           <div class="field"><label>Tutor nuevo — nombre *</label><input id="m-tutor-nombre"></div>
           <div class="field"><label>Tutor nuevo — teléfono *</label><input id="m-tutor-tel"></div>
@@ -258,14 +268,44 @@ async function abrirFormMatricula() {
     buildEstList();
   });
 
-  // Tutor nuevo cuando se elige en el bloque de estudiante nuevo
-  const tutorSel = body.querySelector('#m-tutor');
-  const showNew = (val) => {
-    body.querySelector('#m-tutor-nombre').closest('.field').style.display = val === '' ? 'flex' : 'none';
-    body.querySelector('#m-tutor-tel').closest('.field').style.display = val === '' ? 'flex' : 'none';
+  // Select buscable de tutores
+  const tutorSelBox = body.querySelector('#m-tutor-sel');
+  const tutorBtn = body.querySelector('#m-tutor-btn');
+  const tutorSearch = body.querySelector('#m-tutor-search');
+  const tutorList = body.querySelector('#m-tutor-list');
+  const tutorLabel = body.querySelector('#m-tutor-label');
+  const showNew = () => {
+    const nuevo = !tutorSel;
+    body.querySelector('#m-tutor-nombre').closest('.field').style.display = nuevo ? 'flex' : 'none';
+    body.querySelector('#m-tutor-tel').closest('.field').style.display = nuevo ? 'flex' : 'none';
   };
-  tutorSel.addEventListener('change', () => showNew(tutorSel.value));
-  showNew(tutorSel.value);
+  const buildTutorList = (filtro = '') => {
+    const f = filtro.trim().toLowerCase();
+    const opts = [['', '— Nuevo tutor —']]
+      .concat(tutores.map((t) => [String(t.id), `${t.nombre}${t.telefono ? ' · ' + t.telefono : ''}`]))
+      .filter(([, label]) => !f || label.toLowerCase().includes(f));
+    tutorList.innerHTML = opts.map(([id, label]) =>
+      `<div class="grado-opt ${(id === '' ? !tutorSel : tutorSel && String(tutorSel.id) === id) ? 'active' : ''}" data-tutor="${id}">${esc(label)}</div>`).join('') ||
+      '<div class="grado-opt empty">Sin resultados</div>';
+  };
+  buildTutorList();
+  showNew();
+  tutorBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abrir = !tutorSelBox.classList.contains('open');
+    tutorSelBox.classList.toggle('open', abrir);
+    if (abrir) { tutorSearch.value = ''; buildTutorList(); tutorSearch.focus(); }
+  });
+  tutorSearch.addEventListener('input', () => buildTutorList(tutorSearch.value));
+  tutorList.addEventListener('click', (e) => {
+    const opt = e.target.closest('.grado-opt[data-tutor]');
+    if (!opt) return;
+    tutorSel = opt.dataset.tutor === '' ? null : tutores.find((t) => String(t.id) === opt.dataset.tutor);
+    tutorLabel.textContent = tutorSel ? tutorSel.nombre : '— Nuevo tutor —';
+    tutorSelBox.classList.remove('open');
+    buildTutorList();
+    showNew();
+  });
 
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
   body.querySelector('[data-save]').addEventListener('click', async () => {
@@ -283,7 +323,7 @@ async function abrirFormMatricula() {
         email: formValue('m-mail') || null, direccion: formValue('m-dir') || null,
       };
       if (!data.nombre || !data.apellido) { toast('Nombre y apellido son obligatorios', 'error'); return; }
-      const tutorId = tutorSel.value ? Number(tutorSel.value) : null;
+      const tutorId = tutorSel ? tutorSel.id : null;
       if (tutorId) data.tutor_id = tutorId;
       else data.tutor = { nombre: formValue('m-tutor-nombre'), telefono: formValue('m-tutor-tel') };
       const btn2 = body.querySelector('[data-save]');
