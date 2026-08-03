@@ -222,6 +222,7 @@ async function abrirFormEstudiante(est) {
   const esEdicion = !!est;
   const tutores = (await api('/tutores?limit=200')).data || [];
   const gs = await grados();
+  const tutorInicial = esEdicion && est.tutor_id ? tutores.find((t) => t.id === est.tutor_id) || null : null;
   const body = openModal(esEdicion ? 'Editar estudiante' : 'Matricular estudiante', `
     <div class="form-grid">
       <div class="field"><label>Nombre *</label><input id="f-nombre" value="${esc(est?.nombre || '')}"></div>
@@ -231,12 +232,21 @@ async function abrirFormEstudiante(est) {
       <div class="field full"><label>Email</label><input id="f-mail" value="${esc(est?.email || '')}"></div>
       <div class="field full"><label>Dirección</label><input id="f-dir" value="${esc(est?.direccion || '')}"></div>
       <div class="field full"><label>Tutor</label>
-        <select id="f-tutor"><option value="">— Nuevo tutor —</option>${tutores.map((t) => `<option value="${t.id}" ${est?.tutor_id === t.id ? 'selected' : ''}>${esc(t.nombre)} · ${esc(t.telefono || '')}</option>`).join('')}</select>
+        <div class="grado-select always" id="f-tutor-sel">
+          <button type="button" class="grado-select-btn" id="f-tutor-btn">
+            <span id="f-tutor-label">${tutorInicial ? esc(tutorInicial.nombre) : '— Nuevo tutor —'}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="grado-select-pop">
+            <input class="grado-select-search" id="f-tutor-search" placeholder="Buscar tutor…">
+            <div class="grado-select-list" id="f-tutor-list"></div>
+          </div>
+        </div>
       </div>
-      <div class="field" id="f-nuevo-tutor" style="display:${est && est.tutor_id ? 'none' : 'flex'};">
+      <div class="field" id="f-nuevo-tutor">
         <label>Tutor nuevo — nombre *</label><input id="f-tutor-nombre">
       </div>
-      <div class="field" id="f-nuevo-tutor-tel" style="display:${est && est.tutor_id ? 'none' : 'flex'};">
+      <div class="field" id="f-nuevo-tutor-tel">
         <label>Tutor nuevo — teléfono *</label><input id="f-tutor-tel">
       </div>
       ${esEdicion ? '' : `
@@ -250,13 +260,43 @@ async function abrirFormEstudiante(est) {
       <button class="btn primary" data-save>${esEdicion ? 'Guardar cambios' : 'Matricular'}</button>
     </div>`);
 
-  const tutorSel = body.querySelector('#f-tutor');
-  const showNew = (val) => {
-    body.querySelector('#f-nuevo-tutor').style.display = val === '' ? 'flex' : 'none';
-    body.querySelector('#f-nuevo-tutor-tel').style.display = val === '' ? 'flex' : 'none';
+  const tutorSelBox = body.querySelector('#f-tutor-sel');
+  const tutorBtn = body.querySelector('#f-tutor-btn');
+  const tutorSearch = body.querySelector('#f-tutor-search');
+  const tutorList = body.querySelector('#f-tutor-list');
+  const tutorLabel = body.querySelector('#f-tutor-label');
+  let tutorSel = tutorInicial;
+  const showNew = () => {
+    body.querySelector('#f-nuevo-tutor').style.display = tutorSel ? 'none' : 'flex';
+    body.querySelector('#f-nuevo-tutor-tel').style.display = tutorSel ? 'none' : 'flex';
   };
-  tutorSel.addEventListener('change', () => showNew(tutorSel.value));
-  showNew(tutorSel.value);
+  const buildTutorList = (filtro = '') => {
+    const f = filtro.trim().toLowerCase();
+    const opts = [['', '— Nuevo tutor —']]
+      .concat(tutores.map((t) => [String(t.id), `${t.nombre}${t.telefono ? ' · ' + t.telefono : ''}`]))
+      .filter(([, label]) => !f || label.toLowerCase().includes(f));
+    tutorList.innerHTML = opts.map(([id, label]) =>
+      `<div class="grado-opt ${(id === '' ? !tutorSel : tutorSel && String(tutorSel.id) === id) ? 'active' : ''}" data-tutor="${id}">${esc(label)}</div>`).join('') ||
+      '<div class="grado-opt empty">Sin resultados</div>';
+  };
+  buildTutorList();
+  showNew();
+  tutorBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abrir = !tutorSelBox.classList.contains('open');
+    tutorSelBox.classList.toggle('open', abrir);
+    if (abrir) { tutorSearch.value = ''; buildTutorList(); tutorSearch.focus(); }
+  });
+  tutorSearch.addEventListener('input', () => buildTutorList(tutorSearch.value));
+  tutorList.addEventListener('click', (e) => {
+    const opt = e.target.closest('.grado-opt[data-tutor]');
+    if (!opt) return;
+    tutorSel = opt.dataset.tutor === '' ? null : tutores.find((t) => String(t.id) === opt.dataset.tutor);
+    tutorLabel.textContent = tutorSel ? tutorSel.nombre : '— Nuevo tutor —';
+    tutorSelBox.classList.remove('open');
+    buildTutorList();
+    showNew();
+  });
 
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
   body.querySelector('[data-save]').addEventListener('click', async () => {
@@ -271,10 +311,10 @@ async function abrirFormEstudiante(est) {
     try {
       let guardado;
       if (esEdicion) {
-        data.tutor_id = tutorSel.value ? Number(tutorSel.value) : est.tutor_id;
+        data.tutor_id = tutorSel ? Number(tutorSel.id) : est.tutor_id;
         guardado = await api(`/estudiantes/${est.id}`, { method: 'PUT', body: data });
       } else {
-        const tutorId = tutorSel.value ? Number(tutorSel.value) : null;
+        const tutorId = tutorSel ? Number(tutorSel.id) : null;
         if (!tutorId) {
           data.tutor = { nombre: formValue('f-tutor-nombre'), telefono: formValue('f-tutor-tel') };
         } else {
