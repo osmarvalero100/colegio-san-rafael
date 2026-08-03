@@ -175,3 +175,30 @@ export function notifIcon(tipo) {
   const map = { PAGO_VENCIDO: 'red', PAGO_PROXIMO: 'mustard', NOTA_BAJA: 'red', INASISTENCIA: 'mustard', MATRICULA: 'blue', GENERAL: 'gray' };
   return map[tipo] || 'gray';
 }
+
+// ---------- Filtros de grados responsivos (chips -> select buscable) ----------
+export function chipsDesbordan(filtros) {
+  const chips = filtros.querySelector('.grado-chips');
+  const search = filtros.querySelector('.search');
+  if (!chips) return false;
+  const prev = chips.style.cssText;
+  chips.style.cssText = 'position:absolute; visibility:hidden; display:flex; flex-wrap:nowrap; white-space:nowrap; width:max-content;';
+  const ancho = chips.scrollWidth;
+  chips.style.cssText = prev;
+  const inline = filtros.querySelector('.chips-inline');
+  const ocupado = (search ? search.offsetWidth : 0) + (inline ? inline.offsetWidth : 0) + 48;
+  return ancho > filtros.clientWidth - ocupado;
+}
+
+export function revisarFiltroGrado() {
+  document.querySelectorAll('.filters-grado').forEach((f) => {
+    f.classList.toggle('overflow', window.innerWidth > 768 && chipsDesbordan(f));
+  });
+}
+
+window.addEventListener('resize', () => { clearTimeout(revisarFiltroGrado._t); revisarFiltroGrado._t = setTimeout(revisarFiltroGrado, 150); });
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.grado-select')) {
+    document.querySelectorAll('.grado-select.open').forEach((el) => el.classList.remove('open'));
+  }
+});

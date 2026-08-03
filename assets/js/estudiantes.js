@@ -5,34 +5,10 @@ import { rol, user as authUser } from './auth.js';
 import { ctx, loadHijos, grados } from './context.js';
 import {
   esc, money, avatar, initials, gradePill, badgeEstado, screenEls, openModal, closeModal,
-  formValue, toast, confirmModal, setOpts, loading, todayISO,
+  formValue, toast, confirmModal, setOpts, loading, todayISO, revisarFiltroGrado,
 } from './utils.js';
 
 let estado = { search: '', gradoId: '', selectedId: null };
-
-// ---------- Select buscable de grados ----------
-function chipsDesbordan(filtros) {
-  const chips = filtros.querySelector('.grado-chips');
-  const search = filtros.querySelector('.search');
-  if (!chips) return false;
-  const prev = chips.style.cssText;
-  chips.style.cssText = 'position:absolute; visibility:hidden; display:flex; flex-wrap:nowrap; white-space:nowrap; width:max-content;';
-  const ancho = chips.scrollWidth;
-  chips.style.cssText = prev;
-  const disponible = filtros.clientWidth - (search ? search.offsetWidth : 0) - 48;
-  return ancho > disponible;
-}
-function revisarFiltroGrado() {
-  document.querySelectorAll('.filters-grado').forEach((f) => {
-    f.classList.toggle('overflow', window.innerWidth > 768 && chipsDesbordan(f));
-  });
-}
-window.addEventListener('resize', () => { clearTimeout(revisarFiltroGrado._t); revisarFiltroGrado._t = setTimeout(revisarFiltroGrado, 150); });
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.grado-select')) {
-    document.querySelectorAll('.grado-select.open').forEach((el) => el.classList.remove('open'));
-  }
-});
 
 export async function render() {
   const r = rol();

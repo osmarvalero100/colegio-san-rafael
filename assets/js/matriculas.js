@@ -4,10 +4,10 @@ import { rol } from './auth.js';
 import { grados, anios } from './context.js';
 import {
   esc, badgeEstado, screenEls, openModal, closeModal, formValue, toast,
-  setOpts, loading, todayISO,
+  setOpts, loading, todayISO, revisarFiltroGrado,
 } from './utils.js';
 
-let estado = '';
+let estado = { filtroEstado: '', gradoId: '', search: '' };
 
 export async function render() {
   const { crumbs, actions, body } = screenEls('matriculas');
@@ -15,41 +15,123 @@ export async function render() {
   actions.innerHTML = '<button class="btn primary" id="btn-nueva-matricula">+ Nueva matrícula</button>';
   actions.querySelector('#btn-nueva-matricula').addEventListener('click', abrirFormMatricula);
   loading(body);
-  try {
+
+  const listBody = document.createElement('div');
+  listBody.className = 'panel';
+  body.innerHTML = '';
+  body.appendChild(listBody);
+
+  async function cargar() {
+    const gs = await grados();
     const query = { limit: 300 };
-    if (estado) query.estado = estado;
-    const { data: mats } = await api('/matriculas', { query });
+    if (estado.filtroEstado) query.estado = estado.filtroEstado;
+    if (estado.gradoId) query.grado_id = estado.gradoId;
+    if (estado.search) query.search = estado.search;
+    let mats = [];
+    try {
+      mats = (await api('/matriculas', { query })).data || [];
+    } catch (err) {
+      listBody.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+      return;
+    }
     crumbs.textContent = `${mats.length} matrículas · Año lectivo ${new Date().getFullYear()}`;
-    const chips = ['', 'Activa', 'Pendiente', 'Retirada'].map((e) =>
-      `<span class="chip ${estado === e ? 'active' : ''}" data-estado="${e}">${e === '' ? 'Todas' : e}</span>`).join('');
-    body.innerHTML = `<div class="panel">
-      <div class="filters">${chips}</div>
+    const chipsEstado = ['', 'Activa', 'Pendiente', 'Retirada'].map((e) =>
+      `<span class="chip ${estado.filtroEstado === e ? 'active' : ''}" data-estado="${e}">${e === '' ? 'Todas' : e}</span>`).join('');
+    const gSel = gs.find((g) => String(g.id) === estado.gradoId);
+    listBody.innerHTML = `
+      <div class="filters" id="filtros-matriculas-estado">${chipsEstado}</div>
+      <div class="filters filters-grado" id="filtros-matriculas">
+        <div class="search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="m-buscar" placeholder="Buscar por nombre…" value="${esc(estado.search)}">
+        </div>
+        <div class="grado-wrap">
+          <div class="grado-chips">
+            <span class="chip ${!estado.gradoId ? 'active' : ''}" data-grado="">Todos</span>
+            ${gs.map((g) => `<span class="chip ${estado.gradoId === String(g.id) ? 'active' : ''}" data-grado="${g.id}">${esc(g.grado)}${esc(g.seccion || '')}</span>`).join('')}
+          </div>
+          <div class="grado-select" id="m-grado-sel">
+            <button type="button" class="grado-select-btn" id="m-grado-btn">
+              <span>${gSel ? `${esc(gSel.grado)}${esc(gSel.seccion ? ' ' + gSel.seccion : '')}` : 'Todos los grados'}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="grado-select-pop">
+              <input class="grado-select-search" id="m-grado-search" placeholder="Buscar grado…">
+              <div class="grado-select-list" id="m-grado-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="panel-body">
         <table>
           <thead><tr><th>Estudiante</th><th>Grado</th><th>Año</th><th>Fecha matrícula</th><th>Estado</th><th></th></tr></thead>
           <tbody>${mats.map(filaMatricula).join('') || '<tr><td colspan="6"><div class="empty">Sin matrículas.</div></td></tr>'}</tbody>
         </table>
-      </div>
-    </div>`;
-    body.querySelectorAll('.chip[data-estado]').forEach((c) => c.addEventListener('click', () => {
-      estado = c.dataset.estado;
-      render();
+      </div>`;
+
+    listBody.querySelectorAll('.chip[data-estado]').forEach((c) => c.addEventListener('click', () => {
+      estado.filtroEstado = c.dataset.estado;
+      cargar();
     }));
-    body.querySelectorAll('select[data-cambio-estado]').forEach((sel) => {
+
+    listBody.querySelectorAll('.chip[data-grado]').forEach((c) => c.addEventListener('click', () => {
+      estado.gradoId = c.dataset.grado === '' ? '' : c.dataset.grado;
+      cargar();
+    }));
+
+    // select buscable de grados
+    const gSelBox = listBody.querySelector('#m-grado-sel');
+    const gBtn = listBody.querySelector('#m-grado-btn');
+    const gSearch = listBody.querySelector('#m-grado-search');
+    const gList = listBody.querySelector('#m-grado-list');
+    const buildGradoList = (filtro = '') => {
+      const f = filtro.trim().toLowerCase();
+      const opts = [['', 'Todos los grados']]
+        .concat(gs.map((g) => [String(g.id), `${g.grado}${g.seccion ? ' ' + g.seccion : ''}`]))
+        .filter(([, label]) => !f || label.toLowerCase().includes(f));
+      gList.innerHTML = opts.map(([id, label]) =>
+        `<div class="grado-opt ${(id === '' ? !estado.gradoId : estado.gradoId === id) ? 'active' : ''}" data-grado="${id}">${esc(label)}</div>`).join('') ||
+        '<div class="grado-opt empty">Sin resultados</div>';
+    };
+    buildGradoList();
+    gBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = !gSelBox.classList.contains('open');
+      gSelBox.classList.toggle('open', abrir);
+      if (abrir) { gSearch.value = ''; buildGradoList(); gSearch.focus(); }
+    });
+    gSearch.addEventListener('input', () => buildGradoList(gSearch.value));
+    gList.addEventListener('click', (e) => {
+      const opt = e.target.closest('.grado-opt[data-grado]');
+      if (!opt) return;
+      estado.gradoId = opt.dataset.grado === '' ? '' : opt.dataset.grado;
+      gSelBox.classList.remove('open');
+      cargar();
+    });
+
+    listBody.querySelector('#m-buscar').addEventListener('input', (e) => {
+      estado.search = e.target.value;
+      clearTimeout(estado._t);
+      estado._t = setTimeout(cargar, 300);
+    });
+
+    revisarFiltroGrado();
+
+    listBody.querySelectorAll('select[data-cambio-estado]').forEach((sel) => {
       sel.addEventListener('change', async () => {
         try {
           await api(`/matriculas/${sel.dataset.matricula}`, { method: 'PATCH', body: { estado: sel.value } });
           toast('Estado de matrícula actualizado');
-          render();
+          cargar();
         } catch (err) {
           toast(err.message, 'error');
           sel.value = sel.dataset.anterior;
         }
       });
     });
-  } catch (err) {
-    body.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
   }
+
+  await cargar();
 }
 
 function filaMatricula(m) {
