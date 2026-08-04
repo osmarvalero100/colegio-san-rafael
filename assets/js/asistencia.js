@@ -9,7 +9,7 @@ import {
 } from './utils.js';
 
 const ESTADOS = ['Presente', 'Tarde', 'Ausente', 'Justificado'];
-const sel = { materiaId: '', gradoId: '', fecha: todayISO(), mes: currentMonth(), anio: currentYear() };
+const sel = { materiaId: '', gradoId: '', fecha: todayISO(), mes: currentMonth(), anio: currentYear(), search: '' };
 
 export async function render() {
   const r = rol();
@@ -39,6 +39,8 @@ async function renderToma() {
 
   let materias;
   let estudiantesCache = [];
+  let estudiantes = [];
+  let existentesMap = {};
   if (r === 'PROFESOR') {
     materias = await api('/profesores/me/materias');
     estudiantesCache = await api('/profesores/me/estudiantes');
@@ -69,6 +71,16 @@ async function renderToma() {
     return wrap;
   };
   actions.innerHTML = '';
+  const buscar = document.createElement('div');
+  buscar.className = 'search';
+  buscar.style.cssText = 'width:220px;';
+  buscar.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="asistencia-buscar" placeholder="Buscar estudiante…" value="' + esc(sel.search) + '">';
+  actions.appendChild(buscar);
+  buscar.querySelector('#asistencia-buscar').addEventListener('input', (e) => {
+    sel.search = e.target.value;
+    const tbody = body.querySelector('#b-asistencia tbody');
+    if (tbody) tbody.innerHTML = renderTabla();
+  });
   actions.appendChild(mkPicker('Materia', selMateria));
   actions.appendChild(mkPicker('Fecha', selFecha));
   actions.appendChild(guardar);
@@ -86,7 +98,6 @@ async function renderToma() {
     const mes = anioMes.getMonth() + 1;
     const anio = anioMes.getFullYear();
 
-    let estudiantes = [];
     if (r === 'PROFESOR') {
       estudiantes = estudiantesCache.filter((e) => `${e.grado}${e.seccion || ''}` === `${m.grado}${m.seccion || ''}`);
     } else {
@@ -102,17 +113,10 @@ async function renderToma() {
       existentes = res.data || [];
     } catch (err) { /* sin registros previos */ }
 
-    const mapa = {};
-    existentes.forEach((a) => { mapa[a.estudiante_id] = a; });
+    existentesMap = {};
+    existentes.forEach((a) => { existentesMap[a.estudiante_id] = a; });
 
-    const filas = estudiantes.map((e) => {
-      const prev = mapa[e.id];
-      return `<tr data-eid="${e.id}">
-        <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
-        <td data-label="Estado">${estadoSelect(prev?.estado || 'Presente', editable)}</td>
-        <td data-label="Observación"><input data-obs value="${esc(prev?.observaciones || '')}" placeholder="—" style="width:100%;max-width:220px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-family:Inter;font-size:12.5px;color:var(--ink);outline:none;"></td>
-      </tr>`;
-    }).join('');
+    const filas = renderTabla();
 
     // resumen mensual
     let resumen = null;
@@ -142,6 +146,22 @@ async function renderToma() {
       </div></div>
       ${resumenHtml}
     </div>`;
+  }
+
+  function renderTabla() {
+    const s = sel.search.trim().toLowerCase();
+    const filtrados = s
+      ? estudiantes.filter((e) => `${e.nombre} ${e.apellido}`.toLowerCase().includes(s) || String(e.id).includes(s))
+      : estudiantes;
+    if (!filtrados.length) return '<tr><td colspan="3"><div class="empty">Sin estudiantes que coincidan.</div></td></tr>';
+    return filtrados.map((e) => {
+      const prev = existentesMap[e.id];
+      return `<tr data-eid="${e.id}">
+        <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
+        <td data-label="Estado">${estadoSelect(prev?.estado || 'Presente', editable)}</td>
+        <td data-label="Observación"><input data-obs value="${esc(prev?.observaciones || '')}" placeholder="—" style="width:100%;max-width:220px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-family:Inter;font-size:12.5px;color:var(--ink);outline:none;"></td>
+      </tr>`;
+    }).join('');
   }
 
   selMateria.addEventListener('change', () => { sel.materiaId = selMateria.value; cargar(); });
@@ -195,8 +215,33 @@ async function renderLectura() {
     return wrap;
   };
   actions.innerHTML = '';
+  const buscar = document.createElement('div');
+  buscar.className = 'search';
+  buscar.style.cssText = 'width:220px;';
+  buscar.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="asistencia-buscar" placeholder="Buscar estudiante…" value="' + esc(sel.search) + '">';
+  actions.appendChild(buscar);
+  buscar.querySelector('#asistencia-buscar').addEventListener('input', (e) => {
+    sel.search = e.target.value;
+    const tbody = body.querySelector('#b-asistencia tbody');
+    if (tbody) tbody.innerHTML = renderFilas();
+  });
   actions.appendChild(mkPicker('Materia', selMateria));
   actions.appendChild(mkPicker('Mes', selMes));
+
+  let registros = [];
+
+  function renderFilas() {
+    const s = sel.search.trim().toLowerCase();
+    const filtrados = s
+      ? registros.filter((a) => `${a.estudiante_nombre} ${a.estudiante_apellido}`.toLowerCase().includes(s))
+      : registros;
+    return filtrados.map((a) => `<tr>
+        <td class="row-flex">${avatar(a.estudiante_nombre, a.estudiante_apellido)}<div><div class="cell-name">${esc(a.estudiante_nombre)} ${esc(a.estudiante_apellido)}</div></div></td>
+        <td class="mono" data-label="Fecha">${esc((a.fecha || '').slice(0, 10))}</td>
+        <td data-label="Estado">${badgeEstado(a.estado)}</td>
+        <td class="cell-sub" data-label="Observación">${esc(a.observaciones || '—')}</td>
+      </tr>`).join('') || '<tr><td colspan="4"><div class="empty">Sin registros que coincidan.</div></td></tr>';
+  }
 
   async function cargar() {
     const materiaId = selMateria.value;
@@ -204,12 +249,8 @@ async function renderLectura() {
     loading(body, 'Consultando…');
     try {
       const res = await api('/asistencias', { query: { materia_id: materiaId, mes: sel.mes, anio: sel.anio, limit: 400 } });
-      const filas = (res.data || []).map((a) => `<tr>
-        <td class="row-flex">${avatar(a.estudiante_nombre, a.estudiante_apellido)}<div><div class="cell-name">${esc(a.estudiante_nombre)} ${esc(a.estudiante_apellido)}</div></div></td>
-        <td class="mono" data-label="Fecha">${esc((a.fecha || '').slice(0, 10))}</td>
-        <td data-label="Estado">${badgeEstado(a.estado)}</td>
-        <td class="cell-sub" data-label="Observación">${esc(a.observaciones || '—')}</td>
-      </tr>`).join('') || '<tr><td colspan="4"><div class="empty">Sin registros en este periodo.</div></td></tr>';
+      registros = res.data || [];
+      const filas = renderFilas();
       crumbs.textContent = `Consulta por materia y mes · ${materias.find((m) => String(m.id) === materiaId)?.nombre || ''}`;
       body.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:0;overflow-x:auto;">
         <table><thead><tr><th>Estudiante</th><th>Fecha</th><th>Estado</th><th>Observación</th></tr></thead><tbody>${filas}</tbody></table>
