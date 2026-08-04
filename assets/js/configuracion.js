@@ -1,7 +1,7 @@
 // Pantalla Configuración — catálogos del sistema (solo ADMIN).
 import { api } from './api.js';
 import {
-  esc, badgeEstado, money, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal,
+  esc, badgeEstado, money, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado,
 } from './utils.js';
 
 let activo = 'grados';
@@ -74,18 +74,64 @@ const CATALOGOS = {
 export async function render() {
   const { crumbs, actions, body } = screenEls('configuracion');
   crumbs.textContent = 'Catálogos del sistema';
-  const tabs = Object.entries(CATALOGOS).map(([key, c]) =>
-    `<span class="mini-tab ${activo === key ? 'active' : ''}" data-cat="${key}">${esc(c.nombre)}</span>`).join('');
   actions.innerHTML = `<button class="btn primary" id="btn-nuevo-cat">+ Nuevo</button>`;
   actions.querySelector('#btn-nuevo-cat').addEventListener('click', () => abrirFormCat(activo));
   body.innerHTML = `<div class="panel">
-    <div class="filters">${tabs}</div>
-    <div class="panel-body" style="padding-top:0;" id="cat-body"></div>
+    <div class="filters filters-grado" id="filtros-config">
+      <div class="grado-wrap">
+        <div class="grado-chips" id="config-chips">
+          ${Object.entries(CATALOGOS).map(([key, c]) =>
+            `<span class="chip ${activo === key ? 'active' : ''}" data-cat="${key}">${esc(c.nombre)}</span>`).join('')}
+        </div>
+        <div class="grado-select" id="config-select">
+          <button type="button" class="grado-select-btn" id="config-select-btn">
+            <span>${esc(CATALOGOS[activo].nombre)}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="grado-select-pop" id="config-select-pop">
+            <input class="grado-select-search" id="config-select-search" placeholder="Buscar opción…">
+            <div class="grado-select-list" id="config-select-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel-body" style="padding-top:10px;" id="cat-body"></div>
   </div>`;
-  body.querySelectorAll('.mini-tab').forEach((t) => t.addEventListener('click', () => {
+
+  const buildCatList = (filtro = '') => {
+    const f = filtro.trim().toLowerCase();
+    const opts = Object.entries(CATALOGOS).filter(([, c]) => !f || c.nombre.toLowerCase().includes(f));
+    const list = body.querySelector('#config-select-list');
+    list.innerHTML = opts.map(([key, c]) =>
+      `<div class="grado-opt ${activo === key ? 'active' : ''}" data-cat="${key}">${esc(c.nombre)}</div>`).join('') ||
+      '<div class="grado-opt empty">Sin resultados</div>';
+  };
+
+  body.querySelectorAll('.chip[data-cat]').forEach((t) => t.addEventListener('click', () => {
     activo = t.dataset.cat;
     render();
   }));
+
+  const selBox = body.querySelector('#config-select');
+  const selBtn = body.querySelector('#config-select-btn');
+  const selSearch = body.querySelector('#config-select-search');
+  buildCatList();
+  selBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abrir = !selBox.classList.contains('open');
+    selBox.classList.toggle('open', abrir);
+    if (abrir) { selSearch.value = ''; buildCatList(); selSearch.focus(); }
+  });
+  selSearch.addEventListener('input', () => buildCatList(selSearch.value));
+  body.querySelector('#config-select-list').addEventListener('click', (e) => {
+    const opt = e.target.closest('.grado-opt[data-cat]');
+    if (!opt) return;
+    activo = opt.dataset.cat;
+    selBox.classList.remove('open');
+    render();
+  });
+
+  revisarFiltroGrado();
   await cargarCat(activo);
 }
 
