@@ -345,19 +345,108 @@ async function renderMisEstudiantes() {
   loading(body);
   try {
     const est = await api('/profesores/me/estudiantes');
+    if (!est.length) {
+      crumbs.textContent = '0 estudiantes en tus clases';
+      body.innerHTML = '<div class="empty">Sin estudiantes en tus clases.</div>';
+      return;
+    }
+    const grados = [...new Map(est.map((e) => [e.grado + (e.seccion || ''), e])).values()]
+      .map((e) => ({ match: `${e.grado}${e.seccion || ''}`, label: `${e.grado}${e.seccion ? ' ' + e.seccion : ''}` }));
+    const estado = { search: '', grado: '' };
+
+    const listBody = document.createElement('div');
+    listBody.className = 'panel';
+    body.innerHTML = '';
+    body.appendChild(listBody);
+
+    function renderTabla() {
+      const s = estado.search.trim().toLowerCase();
+      const filtrados = est.filter((e) => {
+        if (estado.grado && `${e.grado}${e.seccion || ''}` !== estado.grado) return false;
+        if (s && !`${e.nombre} ${e.apellido} ${e.grado}`.toLowerCase().includes(s)) return false;
+        return true;
+      });
+      const gSel = grados.find((g) => g.match === estado.grado);
+      listBody.innerHTML = `
+        <div class="filters filters-grado" id="filtros-prof-est">
+          <div class="search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input id="pe-buscar" placeholder="Buscar estudiante…" value="${esc(estado.search)}">
+          </div>
+          <div class="grado-wrap">
+            <div class="grado-chips" id="pe-chips">
+              <span class="chip ${!estado.grado ? 'active' : ''}" data-grado="">Todos</span>
+              ${grados.map((g) => `<span class="chip ${estado.grado === g.match ? 'active' : ''}" data-grado="${esc(g.match)}">${esc(g.label)}</span>`).join('')}
+            </div>
+            <div class="grado-select" id="pe-select">
+              <button type="button" class="grado-select-btn" id="pe-select-btn">
+                <span>${gSel ? esc(gSel.label) : 'Todos los grados'}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="grado-select-pop">
+                <input class="grado-select-search" id="pe-select-search" placeholder="Buscar grado…">
+                <div class="grado-select-list" id="pe-select-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-body" style="padding-top:10px;">
+          <table>
+            <thead><tr><th>Estudiante</th><th>Grado</th><th>Matrícula</th><th>Contacto</th></tr></thead>
+            <tbody>${filtrados.map((e) => `<tr>
+              <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
+              <td data-label="Grado">${esc(e.grado)} ${esc(e.seccion || '')}</td>
+              <td data-label="Matrícula">${badgeEstado(e.matricula_estado)}</td>
+              <td class="mono" data-label="Contacto">${esc(e.email || e.telefono || '—')}</td>
+            </tr>`).join('') || '<tr><td colspan="4"><div class="empty">Sin resultados.</div></td></tr>'}
+            </tbody>
+          </table>
+        </div>`;
+
+      listBody.querySelectorAll('.chip[data-grado]').forEach((c) => c.addEventListener('click', () => {
+        estado.grado = c.dataset.grado;
+        renderTabla();
+      }));
+
+      const selBox = listBody.querySelector('#pe-select');
+      const selBtn = listBody.querySelector('#pe-select-btn');
+      const selSearch = listBody.querySelector('#pe-select-search');
+      const selList = listBody.querySelector('#pe-select-list');
+      const buildList = (filtro = '') => {
+        const f = filtro.trim().toLowerCase();
+        const opts = [['', 'Todos los grados']]
+          .concat(grados.map((g) => [g.match, g.label]))
+          .filter(([, label]) => !f || label.toLowerCase().includes(f));
+        selList.innerHTML = opts.map(([match, label]) =>
+          `<div class="grado-opt ${(match === '' ? !estado.grado : estado.grado === match) ? 'active' : ''}" data-grado="${esc(match)}">${esc(label)}</div>`).join('') ||
+          '<div class="grado-opt empty">Sin resultados</div>';
+      };
+      buildList();
+      selBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const abrir = !selBox.classList.contains('open');
+        selBox.classList.toggle('open', abrir);
+        if (abrir) { selSearch.value = ''; buildList(); selSearch.focus(); }
+      });
+      selSearch.addEventListener('input', () => buildList(selSearch.value));
+      selList.addEventListener('click', (e) => {
+        const opt = e.target.closest('.grado-opt[data-grado]');
+        if (!opt) return;
+        estado.grado = opt.dataset.grado;
+        selBox.classList.remove('open');
+        renderTabla();
+      });
+
+      revisarFiltroGrado();
+      listBody.querySelector('#pe-buscar').addEventListener('input', (e) => {
+        estado.search = e.target.value;
+        clearTimeout(estado._t);
+        estado._t = setTimeout(renderTabla, 300);
+      });
+    }
+
     crumbs.textContent = `${est.length} estudiantes en tus clases`;
-    body.innerHTML = `<div class="panel"><div class="panel-body">
-      <table>
-        <thead><tr><th>Estudiante</th><th>Grado</th><th>Matrícula</th><th>Contacto</th></tr></thead>
-        <tbody>${est.map((e) => `<tr>
-          <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
-          <td data-label="Grado">${esc(e.grado)} ${esc(e.seccion || '')}</td>
-          <td data-label="Matrícula">${badgeEstado(e.matricula_estado)}</td>
-          <td class="mono" data-label="Contacto">${esc(e.email || e.telefono || '—')}</td>
-        </tr>`).join('') || filaVacia()}
-        </tbody>
-      </table>
-    </div></div>`;
+    renderTabla();
   } catch (err) {
     body.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
   }
