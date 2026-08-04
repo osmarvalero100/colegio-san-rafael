@@ -8,7 +8,7 @@ import {
   setOpts, downloadCSV, fmtDate,
 } from './utils.js';
 
-const sel = { materiaId: '', gradoId: '', periodoId: '' };
+const sel = { materiaId: '', gradoId: '', periodoId: '', search: '' };
 
 export async function render() {
   const r = rol();
@@ -79,6 +79,16 @@ async function renderPlanilla() {
   };
 
   actions.innerHTML = '';
+  const buscar = document.createElement('div');
+  buscar.className = 'search';
+  buscar.style.cssText = 'width:220px;';
+  buscar.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="notas-buscar" placeholder="Buscar estudiante…" value="' + esc(sel.search) + '">';
+  actions.appendChild(buscar);
+  buscar.querySelector('#notas-buscar').addEventListener('input', (e) => {
+    sel.search = e.target.value;
+    clearTimeout(sel._t);
+    sel._t = setTimeout(cargar, 300);
+  });
   actions.appendChild(mkPicker('Materia', selMateria));
   actions.appendChild(mkPicker('Grado', selGrado));
   actions.appendChild(mkPicker('Periodo', selPeriodo));
@@ -109,7 +119,7 @@ async function renderPlanilla() {
     }
     loading(body, 'Cargando planilla…');
     try {
-      const res = await api('/notas/planilla', { query: { grado_id: sel.gradoId, materia_id: sel.materiaId, periodo_id: sel.periodoId } });
+      const res = await api('/notas/planilla', { query: { grado_id: sel.gradoId, materia_id: sel.materiaId, periodo_id: sel.periodoId, search: sel.search || undefined } });
       const materia = materias.find((m) => String(m.id) === sel.materiaId);
       crumbs.textContent = `Planilla ${materia ? materia.nombre : ''} · ${res.periodo.nombre} · Escala 1.0 – 5.0`;
       const filas = res.data || [];
