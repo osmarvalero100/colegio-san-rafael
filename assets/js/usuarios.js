@@ -1,43 +1,115 @@
 // Pantalla Usuarios y roles — gestión de cuentas (solo ADMIN).
 import { api } from './api.js';
 import {
-  esc, avatar, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal,
+  esc, avatar, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado,
 } from './utils.js';
 
-let selRol = '';
+let estado = { search: '', rolId: '' };
 
 export async function render() {
   const { crumbs, actions, body } = screenEls('usuarios');
   actions.innerHTML = '<button class="btn primary" id="btn-nuevo-usuario">+ Nuevo usuario</button>';
   actions.querySelector('#btn-nuevo-usuario').addEventListener('click', () => abrirFormUsuario());
   loading(body);
-  try {
+
+  const listBody = document.createElement('div');
+  listBody.className = 'panel';
+  body.innerHTML = '';
+  body.appendChild(listBody);
+
+  async function cargar() {
+    const rolesData = await api('/roles');
+    const roles = Array.isArray(rolesData) ? rolesData : rolesData.data || [];
     const query = { limit: 300 };
-    if (selRol) query.rol_id = selRol;
-    const { data: usuarios } = await api('/usuarios', { query });
+    if (estado.search) query.search = estado.search;
+    if (estado.rolId) query.rol_id = estado.rolId;
+    let usuarios = [];
+    try {
+      usuarios = (await api('/usuarios', { query })).data || [];
+    } catch (err) {
+      listBody.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+      return;
+    }
     crumbs.textContent = `${usuarios.length} cuentas de usuario`;
-    const chips = ['', 'ADMIN', 'SECRETARIA', 'PROFESOR', 'ESTUDIANTE', 'TUTOR'].map((r) =>
-      `<span class="chip ${selRol === r ? 'active' : ''}" data-rol="${r}">${r === '' ? 'Todos' : r}</span>`).join('');
+    const rSel = roles.find((r) => String(r.id) === estado.rolId);
     const filas = usuarios.map(filaUsuario).join('') ||
       '<tr><td colspan="5"><div class="empty">Sin usuarios registrados.</div></td></tr>';
-    body.innerHTML = `<div class="panel">
-      <div class="filters">${chips}</div>
-      <div class="panel-body" style="padding-top:0;">
+    listBody.innerHTML = `
+      <div class="filters filters-grado" id="filtros-usuarios">
+        <div class="search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8993B3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="u-buscar" placeholder="Buscar por usuario o persona…" value="${esc(estado.search)}">
+        </div>
+        <div class="grado-wrap">
+          <div class="grado-chips" id="rol-chips">
+            <span class="chip ${!estado.rolId ? 'active' : ''}" data-rol="">Todos</span>
+            ${roles.map((r) => `<span class="chip ${estado.rolId === String(r.id) ? 'active' : ''}" data-rol="${r.id}">${esc(r.nombre)}</span>`).join('')}
+          </div>
+          <div class="grado-select" id="rol-select">
+            <button type="button" class="grado-select-btn" id="rol-select-btn">
+              <span>${rSel ? esc(rSel.nombre) : 'Todos los roles'}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="grado-select-pop" id="rol-select-pop">
+              <input class="grado-select-search" id="rol-select-search" placeholder="Buscar rol…">
+              <div class="grado-select-list" id="rol-select-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body" style="padding-top:10px;">
         <table>
           <thead><tr><th>Usuario</th><th>Vinculado a</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
           <tbody>${filas}</tbody>
         </table>
-      </div>
-    </div>`;
-    body.querySelectorAll('.chip[data-rol]').forEach((c) => c.addEventListener('click', () => {
-      selRol = c.dataset.rol;
-      render();
+      </div>`;
+
+    listBody.querySelectorAll('.chip[data-rol]').forEach((c) => c.addEventListener('click', () => {
+      estado.rolId = c.dataset.rol === '' ? '' : c.dataset.rol;
+      cargar();
     }));
-    body.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirFormUsuario(Number(b.dataset.editar))));
-    body.querySelectorAll('[data-eliminar]').forEach((b) => b.addEventListener('click', () => eliminarUsuario(Number(b.dataset.eliminar))));
-  } catch (err) {
-    body.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+
+    const rolSelect = listBody.querySelector('#rol-select');
+    const rolBtn = listBody.querySelector('#rol-select-btn');
+    const rolSearch = listBody.querySelector('#rol-select-search');
+    const rolList = listBody.querySelector('#rol-select-list');
+    const buildRolList = (filtro = '') => {
+      const f = filtro.trim().toLowerCase();
+      const opts = [['', 'Todos los roles']]
+        .concat(roles.map((r) => [String(r.id), r.nombre]))
+        .filter(([, label]) => !f || label.toLowerCase().includes(f));
+      rolList.innerHTML = opts.map(([id, label]) =>
+        `<div class="grado-opt ${(id === '' ? !estado.rolId : estado.rolId === id) ? 'active' : ''}" data-rol="${id}">${esc(label)}</div>`).join('') ||
+        '<div class="grado-opt empty">Sin resultados</div>';
+    };
+    buildRolList();
+    rolBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = !rolSelect.classList.contains('open');
+      rolSelect.classList.toggle('open', abrir);
+      if (abrir) { rolSearch.value = ''; buildRolList(); rolSearch.focus(); }
+    });
+    rolSearch.addEventListener('input', () => buildRolList(rolSearch.value));
+    rolList.addEventListener('click', (e) => {
+      const opt = e.target.closest('.grado-opt[data-rol]');
+      if (!opt) return;
+      estado.rolId = opt.dataset.rol === '' ? '' : opt.dataset.rol;
+      rolSelect.classList.remove('open');
+      cargar();
+    });
+
+    revisarFiltroGrado();
+    listBody.querySelector('#u-buscar').addEventListener('input', (e) => {
+      estado.search = e.target.value;
+      clearTimeout(estado._t);
+      estado._t = setTimeout(cargar, 300);
+    });
+
+    listBody.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirFormUsuario(Number(b.dataset.editar))));
+    listBody.querySelectorAll('[data-eliminar]').forEach((b) => b.addEventListener('click', () => eliminarUsuario(Number(b.dataset.eliminar))));
   }
+
+  await cargar();
 }
 
 function filaUsuario(u) {
