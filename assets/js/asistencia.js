@@ -5,11 +5,11 @@ import { rol, user as authUser } from './auth.js';
 import { ctx, loadHijos } from './context.js';
 import {
   esc, avatar, badgeEstado, screenEls, toast, loading, todayISO,
-  currentMonth, currentYear, DAYS_SPANISH,
+  currentMonth, currentYear, DAYS_SPANISH, paginacion, clampPage, searchSelect,
 } from './utils.js';
 
 const ESTADOS = ['Presente', 'Tarde', 'Ausente', 'Justificado'];
-const sel = { materiaId: '', gradoId: '', fecha: todayISO(), mes: currentMonth(), anio: currentYear(), search: '' };
+const sel = { materiaId: '', gradoId: '', fecha: todayISO(), mes: currentMonth(), anio: currentYear(), search: '', page: 1, limit: 10 };
 
 export async function render() {
   const r = rol();
@@ -78,8 +78,8 @@ async function renderToma() {
   actions.appendChild(buscar);
   buscar.querySelector('#asistencia-buscar').addEventListener('input', (e) => {
     sel.search = e.target.value;
-    const tbody = body.querySelector('#b-asistencia tbody');
-    if (tbody) tbody.innerHTML = renderTabla();
+    sel.page = 1;
+    aplicarPaginacion();
   });
   actions.appendChild(mkPicker('Materia', selMateria));
   actions.appendChild(mkPicker('Fecha', selFecha));
@@ -87,6 +87,29 @@ async function renderToma() {
 
   function materiaActual() {
     return materias.find((m) => String(m.id) === sel.materiaId) || materias[0];
+  }
+
+  function estudiantesFiltrados() {
+    const s = sel.search.trim().toLowerCase();
+    return s
+      ? estudiantes.filter((e) => `${e.nombre} ${e.apellido}`.toLowerCase().includes(s) || String(e.id).includes(s))
+      : estudiantes;
+  }
+
+  function aplicarPaginacion() {
+    const tbody = body.querySelector('tbody');
+    if (tbody) tbody.innerHTML = renderTabla();
+    renderPaginacion();
+  }
+
+  function renderPaginacion() {
+    const cont = body.querySelector('#pag-asistencia');
+    if (!cont) return;
+    const total = estudiantesFiltrados().length;
+    paginacion(cont, {
+      page: sel.page, limit: sel.limit, total,
+      onPage: (p, l) => { sel.page = p; sel.limit = l; aplicarPaginacion(); },
+    });
   }
 
   async function cargar() {
@@ -143,18 +166,20 @@ async function renderToma() {
           <thead><tr><th>Estudiante</th><th>Estado</th><th>Observación</th></tr></thead>
           <tbody>${filas}</tbody>
         </table>
-      </div></div>
+      </div>
+      <div id="pag-asistencia"></div></div>
       ${resumenHtml}
     </div>`;
+    renderPaginacion();
   }
 
   function renderTabla() {
-    const s = sel.search.trim().toLowerCase();
-    const filtrados = s
-      ? estudiantes.filter((e) => `${e.nombre} ${e.apellido}`.toLowerCase().includes(s) || String(e.id).includes(s))
-      : estudiantes;
-    if (!filtrados.length) return '<tr><td colspan="3"><div class="empty">Sin estudiantes que coincidan.</div></td></tr>';
-    return filtrados.map((e) => {
+    const filtrados = estudiantesFiltrados();
+    const total = filtrados.length;
+    sel.page = clampPage(sel.page, total, sel.limit);
+    const paginados = filtrados.slice((sel.page - 1) * sel.limit, sel.page * sel.limit);
+    if (!paginados.length) return '<tr><td colspan="3"><div class="empty">Sin estudiantes que coincidan.</div></td></tr>';
+    return paginados.map((e) => {
       const prev = existentesMap[e.id];
       return `<tr data-eid="${e.id}">
         <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
@@ -164,16 +189,19 @@ async function renderToma() {
     }).join('');
   }
 
-  selMateria.addEventListener('change', () => { sel.materiaId = selMateria.value; cargar(); });
-  selFecha.addEventListener('change', () => { sel.fecha = selFecha.value; cargar(); });
+  selMateria.addEventListener('change', () => { sel.materiaId = selMateria.value; sel.page = 1; cargar(); });
+  selFecha.addEventListener('change', () => { sel.fecha = selFecha.value; sel.page = 1; cargar(); });
   guardar.addEventListener('click', async () => {
     const m = materiaActual();
     const registros = [];
-    body.querySelectorAll('#b-asistencia tbody tr[data-eid]').forEach((tr) => {
-      const estudiante_id = Number(tr.dataset.eid);
-      const estado = tr.querySelector('[data-estado]').value;
-      const observaciones = tr.querySelector('[data-obs]').value || null;
-      registros.push({ estudiante_id, estado, observaciones });
+    estudiantes.forEach((e) => {
+      const tr = body.querySelector(`tbody tr[data-eid="${e.id}"]`);
+      const prev = existentesMap[e.id];
+      registros.push({
+        estudiante_id: e.id,
+        estado: tr ? tr.querySelector('[data-estado]').value : (prev?.estado || 'Presente'),
+        observaciones: tr ? (tr.querySelector('[data-obs]').value || null) : (prev?.observaciones || null),
+      });
     });
     if (!registros.length) { toast('Sin registros para guardar', 'warn'); return; }
     guardar.disabled = true;
@@ -222,20 +250,43 @@ async function renderLectura() {
   actions.appendChild(buscar);
   buscar.querySelector('#asistencia-buscar').addEventListener('input', (e) => {
     sel.search = e.target.value;
-    const tbody = body.querySelector('#b-asistencia tbody');
-    if (tbody) tbody.innerHTML = renderFilas();
+    sel.page = 1;
+    aplicarPaginacion();
   });
   actions.appendChild(mkPicker('Materia', selMateria));
   actions.appendChild(mkPicker('Mes', selMes));
 
   let registros = [];
 
-  function renderFilas() {
+  function registrosFiltrados() {
     const s = sel.search.trim().toLowerCase();
-    const filtrados = s
+    return s
       ? registros.filter((a) => `${a.estudiante_nombre} ${a.estudiante_apellido}`.toLowerCase().includes(s))
       : registros;
-    return filtrados.map((a) => `<tr>
+  }
+
+  function aplicarPaginacion() {
+    const tbody = body.querySelector('tbody');
+    if (tbody) tbody.innerHTML = renderFilas();
+    renderPaginacion();
+  }
+
+  function renderPaginacion() {
+    const cont = body.querySelector('#pag-asistencia');
+    if (!cont) return;
+    const total = registrosFiltrados().length;
+    paginacion(cont, {
+      page: sel.page, limit: sel.limit, total,
+      onPage: (p, l) => { sel.page = p; sel.limit = l; aplicarPaginacion(); },
+    });
+  }
+
+  function renderFilas() {
+    const filtrados = registrosFiltrados();
+    const total = filtrados.length;
+    sel.page = clampPage(sel.page, total, sel.limit);
+    const paginados = filtrados.slice((sel.page - 1) * sel.limit, sel.page * sel.limit);
+    return paginados.map((a) => `<tr>
         <td class="row-flex">${avatar(a.estudiante_nombre, a.estudiante_apellido)}<div><div class="cell-name">${esc(a.estudiante_nombre)} ${esc(a.estudiante_apellido)}</div></div></td>
         <td class="mono" data-label="Fecha">${esc((a.fecha || '').slice(0, 10))}</td>
         <td data-label="Estado">${badgeEstado(a.estado)}</td>
@@ -254,21 +305,23 @@ async function renderLectura() {
       crumbs.textContent = `Consulta por materia y mes · ${materias.find((m) => String(m.id) === materiaId)?.nombre || ''}`;
       body.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:0;overflow-x:auto;">
         <table><thead><tr><th>Estudiante</th><th>Fecha</th><th>Estado</th><th>Observación</th></tr></thead><tbody>${filas}</tbody></table>
-      </div></div>`;
+      </div>
+      <div id="pag-asistencia"></div></div>`;
+      renderPaginacion();
     } catch (err) {
       body.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
     }
   }
-  selMateria.addEventListener('change', cargar);
-  selMes.addEventListener('change', () => { sel.mes = Number(selMes.value); cargar(); });
+  selMateria.addEventListener('change', () => { sel.page = 1; cargar(); });
+  selMes.addEventListener('change', () => { sel.mes = Number(selMes.value); sel.page = 1; cargar(); });
   await cargar();
 }
 
 // ---------- Resumen propio (ESTUDIANTE) ----------
-async function renderResumenEstudiante(id, mes, anio) {
+async function renderResumenEstudiante(id, mes, anio, keepActions = false) {
   const { crumbs, actions, body } = screenEls('asistencia');
   crumbs.textContent = `Tu asistencia · ${mes}/${anio}`;
-  actions.innerHTML = '';
+  if (!keepActions) actions.innerHTML = '';
   loading(body);
   try {
     const [res, hist] = await Promise.all([
@@ -309,11 +362,15 @@ async function renderHijos() {
   }
   actions.innerHTML = `<div class="student-picker">
     <span style="font-size:12px;color:var(--ink-faint);font-weight:600;">Estudiante:</span>
-    <select id="sel-hijo">${hijos.map((h) => `<option value="${h.id}" ${h.id === ctx.selectedChildId ? 'selected' : ''}>${esc(h.nombre)} ${esc(h.apellido)}</option>`).join('')}</select>
+    <div id="sel-hijo"></div>
   </div>`;
-  const selEl = actions.querySelector('#sel-hijo');
-  if (!ctx.selectedChildId || !hijos.some((h) => h.id === ctx.selectedChildId)) ctx.selectedChildId = Number(selEl.value);
-  else selEl.value = ctx.selectedChildId;
-  selEl.addEventListener('change', () => { ctx.selectedChildId = Number(selEl.value); renderResumenEstudiante(ctx.selectedChildId, sel.mes, sel.anio); });
-  await renderResumenEstudiante(ctx.selectedChildId, sel.mes, sel.anio);
+  if (!ctx.selectedChildId || !hijos.some((h) => h.id === ctx.selectedChildId)) ctx.selectedChildId = Number(hijos[0].id);
+  searchSelect({
+    el: actions.querySelector('#sel-hijo'),
+    options: hijos.map((h) => [h.id, `${h.nombre} ${h.apellido}`]),
+    initial: ctx.selectedChildId,
+    placeholder: 'Seleccionar estudiante…', searchPlaceholder: 'Buscar estudiante…',
+    onSelect: (v) => { ctx.selectedChildId = Number(v); renderResumenEstudiante(ctx.selectedChildId, sel.mes, sel.anio, true); },
+  });
+  await renderResumenEstudiante(ctx.selectedChildId, sel.mes, sel.anio, true);
 }

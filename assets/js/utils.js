@@ -176,6 +176,107 @@ export function notifIcon(tipo) {
   return map[tipo] || 'gray';
 }
 
+// ---------- Paginación ----------
+export function clampPage(page, total, limit) {
+  const paginas = Math.max(1, Math.ceil(Number(total) / Number(limit)));
+  return Math.min(Math.max(1, Number(page) || 1), paginas);
+}
+
+export function paginacion(container, { page, limit, total, onPage }) {
+  if (!container) return;
+  const paginas = Math.max(1, Math.ceil(Number(total) / Number(limit)));
+  const p = clampPage(page, total, limit);
+  const desde = total === 0 ? 0 : (p - 1) * limit + 1;
+  const hasta = Math.min(p * limit, total);
+  const inicio = Math.max(1, p - 2);
+  const fin = Math.min(paginas, inicio + 4);
+  const nums = [];
+  for (let i = inicio; i <= fin; i++) nums.push(i);
+  container.innerHTML = `
+    <div class="pagination">
+      <div class="pg-info">Mostrando ${desde}–${hasta} de ${total}</div>
+      <div class="pg-size">
+        <span>Por página</span>
+        <select>${[5, 10, 25, 50, 100].map((v) => `<option value="${v}">${v}</option>`).join('')}</select>
+      </div>
+      <div class="pg-btns">
+        <button class="pg-btn" data-pg="${p - 1}" ${p <= 1 ? 'disabled' : ''}>‹</button>
+        ${nums.map((n) => `<button class="pg-btn ${n === p ? 'active' : ''}" data-pg="${n}">${n}</button>`).join('')}
+        <button class="pg-btn" data-pg="${p + 1}" ${p >= paginas ? 'disabled' : ''}>›</button>
+      </div>
+    </div>`;
+  const sizeSel = container.querySelector('.pg-size select');
+  sizeSel.value = String(limit);
+  sizeSel.addEventListener('change', () => onPage(1, Number(sizeSel.value)));
+  container.querySelectorAll('.pg-btn[data-pg]').forEach((b) => b.addEventListener('click', () => onPage(Number(b.dataset.pg), limit)));
+}
+
+// ---------- Select buscable reutilizable ----------
+export function searchSelect({ el, options = [], placeholder = 'Seleccionar…', searchPlaceholder = 'Buscar…', initial = '', allowEmpty = false, onSelect }) {
+  if (!el) return null;
+  let value = initial === null || initial === undefined ? '' : String(initial);
+  const label = (v) => {
+    if (v === '') return '';
+    const o = options.find(([id]) => String(id) === String(v));
+    return o ? o[1] : '';
+  };
+  el.classList.add('grado-select', 'always');
+  el.innerHTML = `
+    <button type="button" class="grado-select-btn">
+      <span class="grado-select-value"></span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="grado-select-pop">
+      <input class="grado-select-search" placeholder="${esc(searchPlaceholder)}">
+      <div class="grado-select-list"></div>
+    </div>`;
+  const btn = el.querySelector('.grado-select-btn');
+  const search = el.querySelector('.grado-select-search');
+  const list = el.querySelector('.grado-select-list');
+  const build = (filtro = '') => {
+    const f = filtro.trim().toLowerCase();
+    const opts = (allowEmpty ? [['', placeholder]] : [])
+      .concat(options.filter(([, l]) => !f || l.toLowerCase().includes(f)));
+    list.innerHTML = opts.map(([id, l]) =>
+      `<div class="grado-opt ${String(id) === value ? 'active' : ''}" data-v="${String(id)}">${esc(l)}</div>`).join('') ||
+      '<div class="grado-opt empty">Sin resultados</div>';
+  };
+  const setBtn = () => {
+    btn.querySelector('.grado-select-value').textContent = value !== '' ? (label(value) || placeholder) : placeholder;
+  };
+  setBtn();
+  build();
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abrir = !el.classList.contains('open');
+    el.classList.toggle('open', abrir);
+    if (abrir) { search.value = ''; build(); search.focus(); }
+  });
+  search.addEventListener('input', () => build(search.value));
+  list.addEventListener('click', (e) => {
+    const opt = e.target.closest('.grado-opt[data-v]');
+    if (!opt) return;
+    value = opt.dataset.v;
+    el.classList.remove('open');
+    setBtn();
+    if (onSelect) onSelect(value);
+  });
+  const api = {
+    el,
+    get value() { return value; },
+    set(v) { value = v === null || v === undefined ? '' : String(v); setBtn(); build(); },
+  };
+  el._searchSelect = api;
+  return api;
+}
+
+export function searchValue(id) {
+  const el = document.getElementById(id);
+  if (!el) return '';
+  if (el._searchSelect) return el._searchSelect.value;
+  return el.value ? el.value.trim() : '';
+}
+
 // ---------- Filtros de grados responsivos (chips -> select buscable) ----------
 export function chipsDesbordan(filtros) {
   const chips = filtros.querySelector('.grado-chips');

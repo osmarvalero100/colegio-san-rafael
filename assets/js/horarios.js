@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { rol, user as authUser } from './auth.js';
 import { ctx, loadHijos, grados } from './context.js';
 import {
-  esc, screenEls, openModal, closeModal, formValue, toast, confirmModal, loading, fmtTime,
+  esc, screenEls, openModal, closeModal, formValue, toast, confirmModal, loading, fmtTime, searchSelect, searchValue,
 } from './utils.js';
 
 const ORDEN_DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -169,9 +169,9 @@ async function abrirFormBloque() {
   const profesores = (await api('/profesores?limit=200')).data || [];
   const body = openModal('Nuevo bloque de clase', `
     <div class="form-grid">
-      <div class="field full"><label>Materia *</label><select id="h-materia">${materias.map((m) => `<option value="${m.id}">${esc(m.nombre)}</option>`).join('')}</select></div>
-      <div class="field full"><label>Profesor *</label><select id="h-profesor">${profesores.map((p) => `<option value="${p.id}">${esc(p.nombre)} ${esc(p.apellido)}</option>`).join('')}</select></div>
-      <div class="field"><label>Grado *</label><select id="h-grado">${gs.map((g) => `<option value="${g.id}" ${String(g.id) === selGradoId ? 'selected' : ''}>${esc(g.grado)} ${esc(g.seccion || '')}</option>`).join('')}</select></div>
+      <div class="field full"><label>Materia *</label><div id="h-materia"></div></div>
+      <div class="field full"><label>Profesor *</label><div id="h-profesor"></div></div>
+      <div class="field"><label>Grado *</label><div id="h-grado"></div></div>
       <div class="field"><label>Día *</label><select id="h-dia">${ORDEN_DIAS.map((d) => `<option value="${d}">${d}</option>`).join('')}</select></div>
       <div class="field"><label>Hora inicio *</label><input id="h-inicio" type="time" value="07:00"></div>
       <div class="field"><label>Hora fin *</label><input id="h-fin" type="time" value="08:00"></div>
@@ -181,12 +181,28 @@ async function abrirFormBloque() {
       <button class="btn" data-cancel>Cancelar</button>
       <button class="btn primary" data-save>Crear bloque</button>
     </div>`);
+  searchSelect({
+    el: body.querySelector('#h-materia'),
+    options: materias.map((m) => [m.id, m.nombre]),
+    placeholder: 'Seleccionar materia…', searchPlaceholder: 'Buscar materia…',
+  });
+  searchSelect({
+    el: body.querySelector('#h-profesor'),
+    options: profesores.map((p) => [p.id, `${p.nombre} ${p.apellido}`]),
+    placeholder: 'Seleccionar profesor…', searchPlaceholder: 'Buscar profesor…',
+  });
+  searchSelect({
+    el: body.querySelector('#h-grado'),
+    options: gs.map((g) => [g.id, `${g.grado}${g.seccion ? ' ' + g.seccion : ''}`]),
+    initial: selGradoId,
+    placeholder: 'Seleccionar grado…', searchPlaceholder: 'Buscar grado…',
+  });
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
   body.querySelector('[data-save]').addEventListener('click', async () => {
     const data = {
-      materia_id: Number(formValue('h-materia')),
-      profesor_id: Number(formValue('h-profesor')),
-      grado_id: Number(formValue('h-grado')),
+      materia_id: Number(searchValue('h-materia')),
+      profesor_id: Number(searchValue('h-profesor')),
+      grado_id: Number(searchValue('h-grado')),
       anio_lectivo_id: (await api('/anios-lectivos?limit=5')).data.find((a) => a.estado === 'Activo')?.id,
       dia: formValue('h-dia'),
       hora_inicio: formValue('h-inicio'),
@@ -226,10 +242,10 @@ async function renderPropio() {
 }
 
 // ---------- ESTUDIANTE / TUTOR ----------
-async function renderPorEstudiante(id) {
+async function renderPorEstudiante(id, keepActions = false) {
   const { crumbs, actions, body } = screenEls('horarios');
   crumbs.textContent = 'Tu horario de clases';
-  actions.innerHTML = '';
+  if (!keepActions) actions.innerHTML = '';
   loading(body);
   try {
     const ficha = await api(`/estudiantes/${id}/ficha`);
@@ -255,11 +271,15 @@ async function renderHijos() {
   }
   actions.innerHTML = `<div class="student-picker">
     <span style="font-size:12px;color:var(--ink-faint);font-weight:600;">Estudiante:</span>
-    <select id="sel-hijo">${hijos.map((h) => `<option value="${h.id}" ${h.id === ctx.selectedChildId ? 'selected' : ''}>${esc(h.nombre)} ${esc(h.apellido)}</option>`).join('')}</select>
+    <div id="sel-hijo"></div>
   </div>`;
-  const selEl = actions.querySelector('#sel-hijo');
-  if (!ctx.selectedChildId || !hijos.some((h) => h.id === ctx.selectedChildId)) ctx.selectedChildId = Number(selEl.value);
-  else selEl.value = ctx.selectedChildId;
-  selEl.addEventListener('change', () => { ctx.selectedChildId = Number(selEl.value); renderPorEstudiante(ctx.selectedChildId); });
-  await renderPorEstudiante(ctx.selectedChildId);
+  if (!ctx.selectedChildId || !hijos.some((h) => h.id === ctx.selectedChildId)) ctx.selectedChildId = Number(hijos[0].id);
+  searchSelect({
+    el: actions.querySelector('#sel-hijo'),
+    options: hijos.map((h) => [h.id, `${h.nombre} ${h.apellido}`]),
+    initial: ctx.selectedChildId,
+    placeholder: 'Seleccionar estudiante…', searchPlaceholder: 'Buscar estudiante…',
+    onSelect: (v) => { ctx.selectedChildId = Number(v); renderPorEstudiante(ctx.selectedChildId, true); },
+  });
+  await renderPorEstudiante(ctx.selectedChildId, true);
 }

@@ -1,10 +1,11 @@
 // Pantalla Configuración — catálogos del sistema (solo ADMIN).
 import { api } from './api.js';
 import {
-  esc, badgeEstado, money, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado,
+  esc, badgeEstado, money, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado, paginacion, clampPage, searchSelect, searchValue,
 } from './utils.js';
 
 let activo = 'grados';
+const pag = { page: 1, limit: 10, cat: '' };
 
 const CATALOGOS = {
   grados: {
@@ -140,8 +141,12 @@ async function cargarCat(key) {
   const body = document.getElementById('cat-body');
   loading(body);
   try {
-    const res = await api(cfg.api, { query: { limit: 500 } });
-    const filas = (res.data || []).map((r) => {
+    if (pag.cat !== key) { pag.cat = key; pag.page = 1; }
+    const res = await api(cfg.api, { query: { page: pag.page, limit: pag.limit } });
+    const data = res.data || [];
+    const total = res.pagination?.total ?? data.length;
+    pag.page = clampPage(pag.page, total, pag.limit);
+    const filas = data.map((r) => {
       const dataTds = cfg.celda(r).map((c, i) => {
         const l = cfg.columnas[i];
         return `<td${l ? ` data-label="${esc(l)}"` : ''}>${c}</td>`;
@@ -159,7 +164,12 @@ async function cargarCat(key) {
     </tr>`;
     }).join('') || '<tr><td colspan="10"><div class="empty">Sin registros.</div></td></tr>';
     const head = `<tr><th>ID</th>${cfg.columnas.map((c) => `<th>${esc(c)}</th>`).join('')}<th></th></tr>`;
-    body.innerHTML = `<div style="overflow-x:auto;"><table><thead>${head}</thead><tbody>${filas}</tbody></table></div>`;
+    body.innerHTML = `<div style="overflow-x:auto;"><table><thead>${head}</thead><tbody>${filas}</tbody></table></div>
+      <div id="pag-cat"></div>`;
+    paginacion(body.querySelector('#pag-cat'), {
+      page: pag.page, limit: pag.limit, total,
+      onPage: (p, l) => { pag.page = p; pag.limit = l; cargarCat(key); },
+    });
     body.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirFormCat(key, Number(b.dataset.editar))));
     body.querySelectorAll('[data-eliminar]').forEach((b) => b.addEventListener('click', () => eliminarCat(key, Number(b.dataset.eliminar))));
     body.querySelectorAll('[data-toggle-anio]').forEach((b) => b.addEventListener('click', () => toggleAnio(Number(b.dataset.toggleAnio), b.dataset.estado)));
@@ -176,9 +186,8 @@ async function aniosCache() {
 function inputHtml(campo, valor, fuentes) {
   const v = valor === null || valor === undefined ? '' : campo.tipo === 'date' ? String(valor).slice(0, 10) : String(valor);
   if (campo.tipo === 'select') {
-    const opciones = campo.fuente === 'anios'
-      ? (fuentes.anios || []).map((a) => `<option value="${a.id}" ${String(a.id) === v ? 'selected' : ''}>${esc(a.anio)}${a.estado === 'Activo' ? ' (activo)' : ''}</option>`)
-      : (campo.opciones || []).map((o) => `<option value="${o}" ${o === v ? 'selected' : ''}>${o}</option>`);
+    if (campo.fuente === 'anios') return `<div id="cat-${campo.k}"></div>`;
+    const opciones = (campo.opciones || []).map((o) => `<option value="${o}" ${o === v ? 'selected' : ''}>${o}</option>`);
     return `<select id="cat-${campo.k}"><option value="">— Seleccionar —</option>${opciones.join('')}</select>`;
   }
   return `<input id="cat-${campo.k}" type="${campo.tipo === 'number' ? 'number' : campo.tipo}" ${campo.tipo === 'number' ? 'step="any"' : ''} value="${esc(v)}">`;
@@ -201,10 +210,19 @@ async function abrirFormCat(key, id) {
       <button class="btn primary" data-save>${esEdicion ? 'Guardar cambios' : 'Crear'}</button>
     </div>`);
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
+  for (const c of cfg.campos) {
+    if (c.tipo !== 'select' || !c.fuente) continue;
+    searchSelect({
+      el: body.querySelector(`#cat-${c.k}`),
+      options: (fuentes.anios || []).map((a) => [a.id, `${a.anio}${a.estado === 'Activo' ? ' (activo)' : ''}`]),
+      initial: actual?.[c.k] || '',
+      placeholder: 'Seleccionar año…', searchPlaceholder: 'Buscar año…',
+    });
+  }
   body.querySelector('[data-save]').addEventListener('click', async () => {
     const data = {};
     for (const c of cfg.campos) {
-      const raw = formValue(`cat-${c.k}`);
+      const raw = searchValue(`cat-${c.k}`);
       if (c.tipo === 'number') data[c.k] = raw === '' ? null : Number(raw);
       else if (c.tipo === 'date') data[c.k] = raw || null;
       else data[c.k] = raw;

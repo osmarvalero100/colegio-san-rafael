@@ -4,10 +4,10 @@ import { rol } from './auth.js';
 import { grados, anios } from './context.js';
 import {
   esc, badgeEstado, screenEls, openModal, closeModal, formValue, toast,
-  setOpts, loading, todayISO, revisarFiltroGrado,
+  setOpts, loading, todayISO, revisarFiltroGrado, paginacion, clampPage, searchSelect, searchValue,
 } from './utils.js';
 
-let estado = { filtroEstado: '', gradoId: '', search: '' };
+let estado = { filtroEstado: '', gradoId: '', search: '', page: 1, limit: 10 };
 
 export async function render() {
   const { crumbs, actions, body } = screenEls('matriculas');
@@ -23,18 +23,21 @@ export async function render() {
 
   async function cargar() {
     const gs = await grados();
-    const query = { limit: 300 };
+    const query = { page: estado.page, limit: estado.limit };
     if (estado.filtroEstado) query.estado = estado.filtroEstado;
     if (estado.gradoId) query.grado_id = estado.gradoId;
     if (estado.search) query.search = estado.search;
-    let mats = [];
+    let res;
     try {
-      mats = (await api('/matriculas', { query })).data || [];
+      res = await api('/matriculas', { query });
     } catch (err) {
       listBody.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
       return;
     }
-    crumbs.textContent = `${mats.length} matrículas · Año lectivo ${new Date().getFullYear()}`;
+    const mats = res.data || [];
+    const total = res.pagination?.total ?? mats.length;
+    estado.page = clampPage(estado.page, total, estado.limit);
+    crumbs.textContent = `${total} matrículas · Año lectivo ${new Date().getFullYear()}`;
     const chipsEstado = ['', 'Activa', 'Pendiente', 'Retirada'].map((e) =>
       `<span class="chip ${estado.filtroEstado === e ? 'active' : ''}" data-estado="${e}">${e === '' ? 'Todas' : e}</span>`).join('');
     const gSel = gs.find((g) => String(g.id) === estado.gradoId);
@@ -67,15 +70,18 @@ export async function render() {
           <thead><tr><th>Estudiante</th><th>Grado</th><th>Año</th><th>Fecha matrícula</th><th>Estado</th><th></th></tr></thead>
           <tbody>${mats.map(filaMatricula).join('') || '<tr><td colspan="6"><div class="empty">Sin matrículas.</div></td></tr>'}</tbody>
         </table>
-      </div>`;
+      </div>
+      <div id="pag-matriculas"></div>`;
 
     listBody.querySelectorAll('.chip[data-estado]').forEach((c) => c.addEventListener('click', () => {
       estado.filtroEstado = c.dataset.estado;
+      estado.page = 1;
       cargar();
     }));
 
     listBody.querySelectorAll('.chip[data-grado]').forEach((c) => c.addEventListener('click', () => {
       estado.gradoId = c.dataset.grado === '' ? '' : c.dataset.grado;
+      estado.page = 1;
       cargar();
     }));
 
@@ -105,14 +111,21 @@ export async function render() {
       const opt = e.target.closest('.grado-opt[data-grado]');
       if (!opt) return;
       estado.gradoId = opt.dataset.grado === '' ? '' : opt.dataset.grado;
+      estado.page = 1;
       gSelBox.classList.remove('open');
       cargar();
     });
 
     listBody.querySelector('#m-buscar').addEventListener('input', (e) => {
       estado.search = e.target.value;
+      estado.page = 1;
       clearTimeout(estado._t);
       estado._t = setTimeout(cargar, 300);
+    });
+
+    paginacion(listBody.querySelector('#pag-matriculas'), {
+      page: estado.page, limit: estado.limit, total,
+      onPage: (p, l) => { estado.page = p; estado.limit = l; cargar(); },
     });
 
     revisarFiltroGrado();
@@ -221,12 +234,8 @@ async function abrirFormMatricula() {
         </div>
       </div>
 
-      <div class="field"><label>Grado *</label>
-        <select id="m-grado">${gs.map((g) => `<option value="${g.id}">${esc(g.grado)} ${esc(g.seccion || '')}</option>`).join('')}</select>
-      </div>
-      <div class="field"><label>Año lectivo *</label>
-        <select id="m-anio">${an.map((a) => `<option value="${a.id}" ${a.estado === 'Activo' ? 'selected' : ''}>${esc(a.anio)}${a.estado === 'Activo' ? ' (activo)' : ''}</option>`).join('')}</select>
-      </div>
+      <div class="field"><label>Grado *</label><div id="m-grado"></div></div>
+      <div class="field"><label>Año lectivo *</label><div id="m-anio"></div></div>
       <div class="field"><label>Fecha de matrícula</label><input id="m-fecha" type="date" value="${todayISO()}"></div>
     </div>
     <div class="form-actions">
@@ -314,10 +323,23 @@ async function abrirFormMatricula() {
     showNew();
   });
 
+  // Selects buscables de grado y año lectivo
+  searchSelect({
+    el: body.querySelector('#m-grado'),
+    options: gs.map((g) => [g.id, `${g.grado}${g.seccion ? ' ' + g.seccion : ''}`]),
+    placeholder: 'Seleccionar grado…', searchPlaceholder: 'Buscar grado…',
+  });
+  searchSelect({
+    el: body.querySelector('#m-anio'),
+    options: an.map((a) => [a.id, `${a.anio}${a.estado === 'Activo' ? ' (activo)' : ''}`]),
+    initial: an.find((a) => a.estado === 'Activo')?.id || '',
+    placeholder: 'Seleccionar año…', searchPlaceholder: 'Buscar año…',
+  });
+
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
   body.querySelector('[data-save]').addEventListener('click', async () => {
-    const grado_id = Number(formValue('m-grado'));
-    const anio_lectivo_id = Number(formValue('m-anio'));
+    const grado_id = Number(searchValue('m-grado'));
+    const anio_lectivo_id = Number(searchValue('m-anio'));
     if (!grado_id || !anio_lectivo_id) { toast('Completa los campos obligatorios', 'error'); return; }
     let estudiante_id;
     if (tipo === 'existente') {

@@ -1,10 +1,10 @@
 // Pantalla Usuarios y roles — gestión de cuentas (solo ADMIN).
 import { api } from './api.js';
 import {
-  esc, avatar, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado,
+  esc, avatar, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado, paginacion, clampPage, searchSelect, searchValue,
 } from './utils.js';
 
-let estado = { search: '', rolId: '' };
+let estado = { search: '', rolId: '', page: 1, limit: 10 };
 
 export async function render() {
   const { crumbs, actions, body } = screenEls('usuarios');
@@ -20,17 +20,20 @@ export async function render() {
   async function cargar() {
     const rolesData = await api('/roles');
     const roles = Array.isArray(rolesData) ? rolesData : rolesData.data || [];
-    const query = { limit: 300 };
+    const query = { page: estado.page, limit: estado.limit };
     if (estado.search) query.search = estado.search;
     if (estado.rolId) query.rol_id = estado.rolId;
-    let usuarios = [];
+    let res;
     try {
-      usuarios = (await api('/usuarios', { query })).data || [];
+      res = await api('/usuarios', { query });
     } catch (err) {
       listBody.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
       return;
     }
-    crumbs.textContent = `${usuarios.length} cuentas de usuario`;
+    const usuarios = res.data || [];
+    const total = res.pagination?.total ?? usuarios.length;
+    estado.page = clampPage(estado.page, total, estado.limit);
+    crumbs.textContent = `${total} cuentas de usuario`;
     const rSel = roles.find((r) => String(r.id) === estado.rolId);
     const filas = usuarios.map(filaUsuario).join('') ||
       '<tr><td colspan="5"><div class="empty">Sin usuarios registrados.</div></td></tr>';
@@ -62,10 +65,12 @@ export async function render() {
           <thead><tr><th>Usuario</th><th>Vinculado a</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
           <tbody>${filas}</tbody>
         </table>
-      </div>`;
+      </div>
+      <div id="pag-usuarios"></div>`;
 
     listBody.querySelectorAll('.chip[data-rol]').forEach((c) => c.addEventListener('click', () => {
       estado.rolId = c.dataset.rol === '' ? '' : c.dataset.rol;
+      estado.page = 1;
       cargar();
     }));
 
@@ -94,6 +99,7 @@ export async function render() {
       const opt = e.target.closest('.grado-opt[data-rol]');
       if (!opt) return;
       estado.rolId = opt.dataset.rol === '' ? '' : opt.dataset.rol;
+      estado.page = 1;
       rolSelect.classList.remove('open');
       cargar();
     });
@@ -101,8 +107,14 @@ export async function render() {
     revisarFiltroGrado();
     listBody.querySelector('#u-buscar').addEventListener('input', (e) => {
       estado.search = e.target.value;
+      estado.page = 1;
       clearTimeout(estado._t);
       estado._t = setTimeout(cargar, 300);
+    });
+
+    paginacion(listBody.querySelector('#pag-usuarios'), {
+      page: estado.page, limit: estado.limit, total,
+      onPage: (p, l) => { estado.page = p; estado.limit = l; cargar(); },
     });
 
     listBody.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirFormUsuario(Number(b.dataset.editar))));
@@ -145,7 +157,7 @@ async function abrirFormUsuario(id) {
     const r = roles.find((x) => x.id === Number(rolId));
     return r && (r.codigo === 'ADMIN' || r.codigo === 'SECRETARIA');
   };
-  const rolActual = u ? roles.find((x) => x.id === u.rol_id) : null;
+  const rolActual = u ? roles.find((x) => x.id === u.rol_id) : roles[0];
 
   const body = openModal(esEdicion ? `Editar usuario · ${u.username}` : 'Nuevo usuario', `
     <div class="form-grid">
@@ -188,17 +200,31 @@ async function abrirFormUsuario(id) {
         </div>
       </div>`;
     }
-    const list = codigo === 'PROFESOR' ? profList : codigo === 'ESTUDIANTE' ? estList : tutList;
-    const nombreCompleto = (x) => `${x.nombre || ''}${x.apellido ? ' ' + x.apellido : ''}`;
-    const opt = (x) => codigo === 'ESTUDIANTE'
-      ? `<option value="${x.id}" ${linkId === x.id ? 'selected' : ''}>${esc(nombreCompleto(x))}${x.grado_nombre ? ` · ${esc(x.grado_nombre)}${esc(x.seccion || '')}` : ''}</option>`
-      : `<option value="${x.id}" ${linkId === x.id ? 'selected' : ''}>${esc(nombreCompleto(x))}</option>`;
     return `<div>
       <div style="font-size:12px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">${esEdicion ? 'Cambiar persona vinculada' : 'Vincular a'} (${codigo === 'PROFESOR' ? 'docente' : codigo === 'ESTUDIANTE' ? 'estudiante' : 'tutor'})</div>
-      <div class="field"><label>Persona *</label>
-        <select id="u-link">${list.map(opt).join('') || '<option value="">Sin opciones — crea primero la persona</option>'}</select>
-      </div>
+      <div class="field"><label>Persona *</label><div id="u-link"></div></div>
     </div>`;
+  }
+
+  const nombreCompleto = (x) => `${x.nombre || ''}${x.apellido ? ' ' + x.apellido : ''}`;
+  function montarVinculo(usuario, rolObj) {
+    if (!rolObj || rolObj.codigo === 'ADMIN' || rolObj.codigo === 'SECRETARIA') return;
+    const codigo = rolObj.codigo;
+    const list = codigo === 'PROFESOR' ? profList : codigo === 'ESTUDIANTE' ? estList : tutList;
+    const linkId = usuario && (codigo === 'PROFESOR' ? usuario.profesor_id
+      : codigo === 'ESTUDIANTE' ? usuario.estudiante_id : usuario.tutor_id);
+    const el = linkWrap.querySelector('#u-link');
+    const opts = list.map((x) => codigo === 'ESTUDIANTE'
+      ? [x.id, `${nombreCompleto(x)}${x.grado_nombre ? ` · ${x.grado_nombre}${x.seccion || ''}` : ''}`]
+      : [x.id, nombreCompleto(x)]);
+    if (!opts.length) { el.innerHTML = '<span class="cell-sub">Sin opciones — crea primero la persona</span>'; return; }
+    searchSelect({
+      el,
+      options: opts,
+      initial: linkId || '',
+      placeholder: 'Buscar y seleccionar…',
+      searchPlaceholder: codigo === 'ESTUDIANTE' ? 'Buscar por nombre o apellido…' : 'Buscar por nombre…',
+    });
   }
 
   rolEl.addEventListener('change', () => {
@@ -207,7 +233,10 @@ async function abrirFormUsuario(id) {
     const cont = document.createElement('div');
     cont.innerHTML = selectorPersona(null, rolObj);
     linkWrap.appendChild(cont.firstElementChild || cont);
+    montarVinculo(null, rolObj);
   });
+
+  montarVinculo(u, rolActual);
 
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
   body.querySelector('[data-save]').addEventListener('click', async () => {
@@ -231,7 +260,7 @@ async function abrirFormUsuario(id) {
           cargo: formValue('pa-cargo') || null,
         };
       } else {
-        const link = Number(formValue('u-link'));
+        const link = Number(searchValue('u-link'));
         if (!link) { toast('Selecciona la persona a vincular', 'error'); return; }
         if (rolObj.codigo === 'PROFESOR') data.profesor_id = link;
         else if (rolObj.codigo === 'ESTUDIANTE') data.estudiante_id = link;

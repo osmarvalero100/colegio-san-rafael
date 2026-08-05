@@ -5,10 +5,10 @@ import { rol, user as authUser } from './auth.js';
 import { ctx, loadHijos, grados, periodos } from './context.js';
 import {
   esc, avatar, gradePill, gradeClass, screenEls, openModal, toast, loading,
-  setOpts, downloadCSV, fmtDate,
+  setOpts, downloadCSV, fmtDate, paginacion, clampPage, searchSelect,
 } from './utils.js';
 
-const sel = { materiaId: '', gradoId: '', periodoId: '', search: '' };
+const sel = { materiaId: '', gradoId: '', periodoId: '', search: '', page: 1, limit: 10 };
 
 export async function render() {
   const r = rol();
@@ -86,6 +86,7 @@ async function renderPlanilla() {
   actions.appendChild(buscar);
   buscar.querySelector('#notas-buscar').addEventListener('input', (e) => {
     sel.search = e.target.value;
+    sel.page = 1;
     clearTimeout(sel._t);
     sel._t = setTimeout(cargar, 300);
   });
@@ -102,6 +103,7 @@ async function renderPlanilla() {
 
   selMateria.addEventListener('change', () => {
     sel.materiaId = selMateria.value;
+    sel.page = 1;
     if (r === 'PROFESOR') {
       const m = materias.find((x) => String(x.id) === sel.materiaId);
       selGrado.innerHTML = `<option>${m ? `${esc(m.grado)} ${esc(m.seccion || '')}` : '—'}</option>`;
@@ -109,8 +111,8 @@ async function renderPlanilla() {
     }
     cargar();
   });
-  selGrado.addEventListener('change', () => { sel.gradoId = selGrado.value; cargar(); });
-  selPeriodo.addEventListener('change', () => { sel.periodoId = selPeriodo.value; cargar(); });
+  selGrado.addEventListener('change', () => { sel.gradoId = selGrado.value; sel.page = 1; cargar(); });
+  selPeriodo.addEventListener('change', () => { sel.periodoId = selPeriodo.value; sel.page = 1; cargar(); });
 
   async function cargar() {
     if (!sel.gradoId || !sel.materiaId || !sel.periodoId) {
@@ -119,12 +121,14 @@ async function renderPlanilla() {
     }
     loading(body, 'Cargando planilla…');
     try {
-      const res = await api('/notas/planilla', { query: { grado_id: sel.gradoId, materia_id: sel.materiaId, periodo_id: sel.periodoId, search: sel.search || undefined } });
+      const res = await api('/notas/planilla', { query: { grado_id: sel.gradoId, materia_id: sel.materiaId, periodo_id: sel.periodoId, search: sel.search || undefined, page: sel.page, limit: sel.limit } });
       const materia = materias.find((m) => String(m.id) === sel.materiaId);
       crumbs.textContent = `Planilla ${materia ? materia.nombre : ''} · ${res.periodo.nombre} · Escala 1.0 – 5.0`;
       const filas = res.data || [];
+      const total = res.pagination?.total ?? filas.length;
+      sel.page = clampPage(sel.page, total, sel.limit);
       body.innerHTML = `<div class="panel">
-        <div class="panel-head"><div><h3>${esc(materia?.nombre || 'Materia')} — ${esc(res.periodo.nombre)}</h3><div class="hint">Ponderación ${res.periodo.ponderacion ?? '—'}% · ${filas.length} estudiantes</div></div></div>
+        <div class="panel-head"><div><h3>${esc(materia?.nombre || 'Materia')} — ${esc(res.periodo.nombre)}</h3><div class="hint">Ponderación ${res.periodo.ponderacion ?? '—'}% · ${total} estudiantes</div></div></div>
         <div class="panel-body" style="padding-top:0;overflow-x:auto;">
           <table>
             <thead><tr><th>Estudiante</th><th>Notas registradas</th><th>Promedio</th>
@@ -132,7 +136,13 @@ async function renderPlanilla() {
             <tbody>${filas.map((f) => filaPlanilla(f, editable)).join('') || '<tr><td colspan="6"><div class="empty">Sin estudiantes matriculados en este grado.</div></td></tr>'}</tbody>
           </table>
         </div>
+        <div id="pag-planilla"></div>
       </div>`;
+
+      paginacion(body.querySelector('#pag-planilla'), {
+        page: sel.page, limit: sel.limit, total,
+        onPage: (p, l) => { sel.page = p; sel.limit = l; cargar(); },
+      });
 
       if (editable) {
         body.querySelectorAll('[data-guardar-nota]').forEach((b) => b.addEventListener('click', guardarNota));
@@ -197,14 +207,12 @@ async function renderPlanilla() {
     }
   }
 
-  function exportarCSV() {
+  async function exportarCSV() {
+    const res = await api('/notas/planilla', { query: { grado_id: sel.gradoId, materia_id: sel.materiaId, periodo_id: sel.periodoId, search: sel.search || undefined, limit: 1000 } });
     const filas = [['Estudiante', 'Notas', 'Promedio']];
-    const filasDom = body.querySelectorAll('#b-notas tr');
-    filasDom.forEach((tr) => {
-      const celdas = tr.querySelectorAll('td');
-      if (celdas.length < 3) return;
-      const nombre = celdas[0].querySelector('.cell-name')?.textContent || '';
-      filas.push([nombre, celdas[1].textContent.trim().replace(/\s+/g, ' '), celdas[2].textContent.trim()]);
+    (res.data || []).forEach((f) => {
+      const notas = (f.notas || []).map((n) => `${Number(n.nota).toFixed(1)}${n.porcentaje ? ` (${n.porcentaje}%)` : ''}`).join(', ');
+      filas.push([`${f.estudiante.nombre} ${f.estudiante.apellido}`, notas, f.promedio ?? '']);
     });
     downloadCSV(`planilla-${sel.materiaId}-p${sel.periodoId}.csv`, filas);
   }
@@ -213,10 +221,10 @@ async function renderPlanilla() {
 }
 
 // ---------- Promedios por materia (ESTUDIANTE / TUTOR) ----------
-async function renderPromedios(estudianteId) {
+async function renderPromedios(estudianteId, keepActions = false) {
   const { crumbs, actions, body } = screenEls('notas');
   crumbs.textContent = 'Promedio por materia · Escala 1.0 – 5.0';
-  actions.innerHTML = '';
+  if (!keepActions) actions.innerHTML = '';
   loading(body);
   try {
     const res = await api(`/notas/promedio/estudiante/${estudianteId}`);
@@ -246,11 +254,15 @@ async function renderHijosPromedios() {
   }
   actions.innerHTML = `<div class="student-picker">
     <span style="font-size:12px;color:var(--ink-faint);font-weight:600;">Estudiante:</span>
-    <select id="sel-hijo">${hijos.map((h) => `<option value="${h.id}" ${h.id === ctx.selectedChildId ? 'selected' : ''}>${esc(h.nombre)} ${esc(h.apellido)}</option>`).join('')}</select>
+    <div id="sel-hijo"></div>
   </div>`;
-  const selEl = actions.querySelector('#sel-hijo');
-  if (!ctx.selectedChildId || !hijos.some((h) => h.id === ctx.selectedChildId)) ctx.selectedChildId = Number(selEl.value);
-  else selEl.value = ctx.selectedChildId;
-  selEl.addEventListener('change', () => { ctx.selectedChildId = Number(selEl.value); renderPromedios(ctx.selectedChildId); });
-  await renderPromedios(ctx.selectedChildId);
+  if (!ctx.selectedChildId || !hijos.some((h) => h.id === ctx.selectedChildId)) ctx.selectedChildId = Number(hijos[0].id);
+  searchSelect({
+    el: actions.querySelector('#sel-hijo'),
+    options: hijos.map((h) => [h.id, `${h.nombre} ${h.apellido}`]),
+    initial: ctx.selectedChildId,
+    placeholder: 'Seleccionar estudiante…', searchPlaceholder: 'Buscar estudiante…',
+    onSelect: (v) => { ctx.selectedChildId = Number(v); renderPromedios(ctx.selectedChildId, true); },
+  });
+  await renderPromedios(ctx.selectedChildId, true);
 }

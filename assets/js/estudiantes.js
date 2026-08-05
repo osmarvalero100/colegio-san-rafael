@@ -5,10 +5,10 @@ import { rol, user as authUser } from './auth.js';
 import { ctx, loadHijos, grados } from './context.js';
 import {
   esc, money, avatar, initials, gradePill, badgeEstado, screenEls, openModal, closeModal,
-  formValue, toast, confirmModal, setOpts, loading, todayISO, revisarFiltroGrado,
+  formValue, toast, confirmModal, setOpts, loading, todayISO, revisarFiltroGrado, paginacion, clampPage, searchSelect, searchValue,
 } from './utils.js';
 
-let estado = { search: '', gradoId: '', selectedId: null };
+let estado = { search: '', gradoId: '', selectedId: null, page: 1, limit: 10 };
 
 export async function render() {
   const r = rol();
@@ -31,17 +31,20 @@ async function renderGestion() {
   body.appendChild(listBody);
 
   async function cargar() {
-    const query = { limit: 200 };
+    const query = { page: estado.page, limit: estado.limit };
     if (estado.search) query.search = estado.search;
     if (estado.gradoId) query.grado_id = estado.gradoId;
-    let est = [];
+    let res;
     try {
-      est = (await api('/estudiantes', { query })).data || [];
+      res = await api('/estudiantes', { query });
     } catch (err) {
       listBody.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
       return;
     }
-    crumbs.textContent = `${est.length} estudiantes`;
+    const est = res.data || [];
+    const total = res.pagination?.total ?? est.length;
+    estado.page = clampPage(estado.page, total, estado.limit);
+    crumbs.textContent = `${total} estudiantes`;
     const gs = await grados();
     const gSel = gs.find((g) => String(g.id) === estado.gradoId);
     listBody.innerHTML = `
@@ -72,11 +75,13 @@ async function renderGestion() {
           <thead><tr><th>Estudiante</th><th>Grado</th><th>Tutor</th><th>Contacto</th><th>Estado</th><th></th></tr></thead>
           <tbody id="tbl-estudiantes">${est.map(filaEstudiante).join('') || filaVacia()}</tbody>
         </table>
-      </div>`;
+      </div>
+      <div id="pag-estudiantes"></div>`;
 
     // chips de grado
     listBody.querySelectorAll('.chip[data-grado]').forEach((c) => c.addEventListener('click', () => {
       estado.gradoId = c.dataset.grado === '' ? '' : c.dataset.grado;
+      estado.page = 1;
       cargar();
     }));
 
@@ -106,13 +111,20 @@ async function renderGestion() {
       const opt = e.target.closest('.grado-opt[data-grado]');
       if (!opt) return;
       estado.gradoId = opt.dataset.grado === '' ? '' : opt.dataset.grado;
+      estado.page = 1;
       gradoSelect.classList.remove('open');
       cargar();
+    });
+
+    paginacion(listBody.querySelector('#pag-estudiantes'), {
+      page: estado.page, limit: estado.limit, total,
+      onPage: (p, l) => { estado.page = p; estado.limit = l; cargar(); },
     });
 
     revisarFiltroGrado();
     listBody.querySelector('#f-buscar').addEventListener('input', (e) => {
       estado.search = e.target.value;
+      estado.page = 1;
       clearTimeout(estado._t);
       estado._t = setTimeout(cargar, 300);
     });
@@ -251,7 +263,7 @@ async function abrirFormEstudiante(est) {
       </div>
       ${esEdicion ? '' : `
       <div class="field"><label>Grado (matrícula)</label>
-        <select id="f-grado"><option value="">— Sin matrícula —</option>${gs.map((g) => `<option value="${g.id}">${esc(g.grado)} ${esc(g.seccion || '')}</option>`).join('')}</select>
+        <div id="f-grado"></div>
       </div>
       <div class="field"><label>Fecha de matrícula</label><input id="f-matfecha" type="date" value="${todayISO()}"></div>`}
     </div>
@@ -298,6 +310,12 @@ async function abrirFormEstudiante(est) {
     showNew();
   });
 
+  searchSelect({
+    el: body.querySelector('#f-grado'),
+    options: gs.map((g) => [g.id, `${g.grado}${g.seccion ? ' ' + g.seccion : ''}`]),
+    placeholder: '— Sin matrícula —', searchPlaceholder: 'Buscar grado…', allowEmpty: true,
+  });
+
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
   body.querySelector('[data-save]').addEventListener('click', async () => {
     const data = {
@@ -321,7 +339,7 @@ async function abrirFormEstudiante(est) {
           data.tutor_id = tutorId;
         }
         guardado = await api('/estudiantes', { method: 'POST', body: data });
-        const gradoId = formValue('f-grado');
+        const gradoId = searchValue('f-grado');
         if (gradoId) {
           await api('/matriculas', { method: 'POST', body: { estudiante_id: guardado.id, grado_id: Number(gradoId), fecha_matricula: formValue('f-matfecha') || null } });
         }
@@ -352,7 +370,7 @@ async function renderMisEstudiantes() {
     }
     const grados = [...new Map(est.map((e) => [e.grado + (e.seccion || ''), e])).values()]
       .map((e) => ({ match: `${e.grado}${e.seccion || ''}`, label: `${e.grado}${e.seccion ? ' ' + e.seccion : ''}` }));
-    const estado = { search: '', grado: '' };
+    const estado = { search: '', grado: '', page: 1, limit: 10 };
 
     const listBody = document.createElement('div');
     listBody.className = 'panel';
@@ -366,6 +384,9 @@ async function renderMisEstudiantes() {
         if (s && !`${e.nombre} ${e.apellido} ${e.grado}`.toLowerCase().includes(s)) return false;
         return true;
       });
+      const total = filtrados.length;
+      estado.page = clampPage(estado.page, total, estado.limit);
+      const paginados = filtrados.slice((estado.page - 1) * estado.limit, estado.page * estado.limit);
       const gSel = grados.find((g) => g.match === estado.grado);
       listBody.innerHTML = `
         <div class="filters filters-grado" id="filtros-prof-est">
@@ -393,7 +414,7 @@ async function renderMisEstudiantes() {
         <div class="panel-body" style="padding-top:10px;">
           <table>
             <thead><tr><th>Estudiante</th><th>Grado</th><th>Matrícula</th><th>Contacto</th></tr></thead>
-            <tbody>${filtrados.map((e) => `<tr>
+            <tbody>${paginados.map((e) => `<tr>
               <td class="row-flex">${avatar(e.nombre, e.apellido)}<div><div class="cell-name">${esc(e.nombre)} ${esc(e.apellido)}</div><div class="cell-sub id-mono">#${e.id}</div></div></td>
               <td data-label="Grado">${esc(e.grado)} ${esc(e.seccion || '')}</td>
               <td data-label="Matrícula">${badgeEstado(e.matricula_estado)}</td>
@@ -401,10 +422,12 @@ async function renderMisEstudiantes() {
             </tr>`).join('') || '<tr><td colspan="4"><div class="empty">Sin resultados.</div></td></tr>'}
             </tbody>
           </table>
-        </div>`;
+        </div>
+        <div id="pag-prof-est"></div>`;
 
       listBody.querySelectorAll('.chip[data-grado]').forEach((c) => c.addEventListener('click', () => {
         estado.grado = c.dataset.grado;
+        estado.page = 1;
         renderTabla();
       }));
 
@@ -433,13 +456,20 @@ async function renderMisEstudiantes() {
         const opt = e.target.closest('.grado-opt[data-grado]');
         if (!opt) return;
         estado.grado = opt.dataset.grado;
+        estado.page = 1;
         selBox.classList.remove('open');
         renderTabla();
+      });
+
+      paginacion(listBody.querySelector('#pag-prof-est'), {
+        page: estado.page, limit: estado.limit, total,
+        onPage: (p, l) => { estado.page = p; estado.limit = l; renderTabla(); },
       });
 
       revisarFiltroGrado();
       listBody.querySelector('#pe-buscar').addEventListener('input', (e) => {
         estado.search = e.target.value;
+        estado.page = 1;
         clearTimeout(estado._t);
         estado._t = setTimeout(renderTabla, 300);
       });
@@ -512,17 +542,15 @@ async function renderHijos() {
   }
   actions.innerHTML = `<div class="student-picker">
     <span style="font-size:12px;color:var(--ink-faint);font-weight:600;">Estudiante:</span>
-    <select id="sel-hijo">${hijos.map((h) => `<option value="${h.id}" ${h.id === ctx.selectedChildId ? 'selected' : ''}>${esc(h.nombre)} ${esc(h.apellido)}${h.grado ? ` · ${esc(h.grado)}${esc(h.seccion || '')}` : ''}</option>`).join('')}</select>
+    <div id="sel-hijo"></div>
   </div>`;
-  const sel = actions.querySelector('#sel-hijo');
-  if (!ctx.selectedChildId || !hijos.some((h) => h.id === ctx.selectedChildId)) {
-    ctx.selectedChildId = Number(sel.value);
-  } else {
-    sel.value = ctx.selectedChildId;
-  }
-  sel.addEventListener('change', () => {
-    ctx.selectedChildId = Number(sel.value);
-    renderHijos();
+  if (!ctx.selectedChildId || !hijos.some((h) => h.id === ctx.selectedChildId)) ctx.selectedChildId = Number(hijos[0].id);
+  searchSelect({
+    el: actions.querySelector('#sel-hijo'),
+    options: hijos.map((h) => [h.id, `${h.nombre} ${h.apellido}${h.grado ? ` · ${h.grado}${h.seccion || ''}` : ''}`]),
+    initial: ctx.selectedChildId,
+    placeholder: 'Seleccionar estudiante…', searchPlaceholder: 'Buscar estudiante…',
+    onSelect: (v) => { ctx.selectedChildId = Number(v); renderHijos(); },
   });
 
   loading(body);

@@ -2,10 +2,10 @@
 import { api } from './api.js';
 import { rol } from './auth.js';
 import {
-  esc, avatar, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado,
+  esc, avatar, screenEls, toast, loading, openModal, closeModal, formValue, confirmModal, revisarFiltroGrado, paginacion, clampPage, searchSelect, searchValue,
 } from './utils.js';
 
-let estado = { search: '', materiaId: '' };
+let estado = { search: '', materiaId: '', page: 1, limit: 10 };
 
 export async function render() {
   const { crumbs, actions, body } = screenEls('profesores');
@@ -20,17 +20,20 @@ export async function render() {
 
   async function cargar() {
     const mats = (await api('/materias', { query: { limit: 300 } })).data || [];
-    const query = { limit: 300 };
+    const query = { page: estado.page, limit: estado.limit };
     if (estado.search) query.search = estado.search;
     if (estado.materiaId) query.materia_id = estado.materiaId;
-    let profes = [];
+    let res;
     try {
-      profes = (await api('/profesores', { query })).data || [];
+      res = await api('/profesores', { query });
     } catch (err) {
       listBody.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
       return;
     }
-    crumbs.textContent = `${profes.length} docentes`;
+    const profes = res.data || [];
+    const total = res.pagination?.total ?? profes.length;
+    estado.page = clampPage(estado.page, total, estado.limit);
+    crumbs.textContent = `${total} docentes`;
     const mSel = mats.find((m) => String(m.id) === estado.materiaId);
     const filas = profes.map(filaProfesor).join('') ||
       '<tr><td colspan="5"><div class="empty">Sin profesores registrados.</div></td></tr>';
@@ -62,10 +65,12 @@ export async function render() {
           <thead><tr><th>Docente</th><th>Especialidad</th><th>Contacto</th><th>Materias</th><th></th></tr></thead>
           <tbody>${filas}</tbody>
         </table>
-      </div>`;
+      </div>
+      <div id="pag-profesores"></div>`;
 
     listBody.querySelectorAll('.chip[data-materia]').forEach((c) => c.addEventListener('click', () => {
       estado.materiaId = c.dataset.materia === '' ? '' : c.dataset.materia;
+      estado.page = 1;
       cargar();
     }));
 
@@ -95,6 +100,7 @@ export async function render() {
       const opt = e.target.closest('.grado-opt[data-materia]');
       if (!opt) return;
       estado.materiaId = opt.dataset.materia === '' ? '' : opt.dataset.materia;
+      estado.page = 1;
       const m = mats.find((x) => String(x.id) === estado.materiaId);
       mBtnLabel.textContent = m ? m.nombre : 'Todas las materias';
       mSelBox.classList.remove('open');
@@ -103,8 +109,14 @@ export async function render() {
 
     listBody.querySelector('#pr-buscar').addEventListener('input', (e) => {
       estado.search = e.target.value;
+      estado.page = 1;
       clearTimeout(estado._t);
       estado._t = setTimeout(cargar, 300);
+    });
+
+    paginacion(listBody.querySelector('#pag-profesores'), {
+      page: estado.page, limit: estado.limit, total,
+      onPage: (p, l) => { estado.page = p; estado.limit = l; cargar(); },
     });
 
     revisarFiltroGrado();
@@ -168,10 +180,7 @@ async function abrirFormProfesor(id) {
     <div class="form-grid">
       <div class="field"><label>Nombres *</label><input id="pr-nombre" value="${esc(p?.nombre || '')}"></div>
       <div class="field"><label>Apellidos *</label><input id="pr-apellido" value="${esc(p?.apellido || '')}"></div>
-      <div class="field full"><label>Especialidad *</label>
-        <select id="pr-especialidad">${esp.map((e) =>
-          `<option value="${e.id}" ${p && p.especialidad_id === e.id ? 'selected' : ''}>${esc(e.nombre)}</option>`).join('')}</select>
-      </div>
+      <div class="field full"><label>Especialidad *</label><div id="pr-especialidad"></div></div>
       <div class="field"><label>Email</label><input id="pr-email" type="email" value="${esc(p?.email || '')}"></div>
       <div class="field"><label>Teléfono</label><input id="pr-telefono" value="${esc(p?.telefono || '')}"></div>
     </div>
@@ -179,12 +188,18 @@ async function abrirFormProfesor(id) {
       <button class="btn" data-cancel>Cancelar</button>
       <button class="btn primary" data-save>${esEdicion ? 'Guardar cambios' : 'Crear profesor'}</button>
     </div>`);
+  searchSelect({
+    el: body.querySelector('#pr-especialidad'),
+    options: esp.map((e) => [e.id, e.nombre]),
+    initial: p?.especialidad_id || '',
+    placeholder: 'Seleccionar especialidad…', searchPlaceholder: 'Buscar especialidad…',
+  });
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);
   body.querySelector('[data-save]').addEventListener('click', async () => {
     const data = {
       nombre: formValue('pr-nombre'),
       apellido: formValue('pr-apellido'),
-      especialidad_id: Number(formValue('pr-especialidad')),
+      especialidad_id: Number(searchValue('pr-especialidad')),
       email: formValue('pr-email') || null,
       telefono: formValue('pr-telefono') || null,
     };
