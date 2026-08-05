@@ -246,13 +246,20 @@ export function searchSelect({ el, options = [], placeholder = 'Seleccionar…',
   };
   setBtn();
   build();
+  const estAltura = () => 62 + Math.min(list.children.length * 36, 220);
+  const orientar = () => {
+    const modal = el.closest('.modal');
+    const br = btn.getBoundingClientRect();
+    const abajo = modal ? modal.getBoundingClientRect().bottom - br.bottom : window.innerHeight - br.bottom;
+    el.classList.toggle('pop-up', abajo < estAltura());
+  };
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const abrir = !el.classList.contains('open');
+    if (abrir) { search.value = ''; build(); orientar(); search.focus(); }
     el.classList.toggle('open', abrir);
-    if (abrir) { search.value = ''; build(); search.focus(); }
   });
-  search.addEventListener('input', () => build(search.value));
+  search.addEventListener('input', () => { build(search.value); orientar(); });
   list.addEventListener('click', (e) => {
     const opt = e.target.closest('.grado-opt[data-v]');
     if (!opt) return;

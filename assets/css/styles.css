@@ -241,6 +241,7 @@ tbody tr:hover{background:#F7F9FD;}
 .grado-select.always{display:block;}
 .grado-select.always .grado-select-btn{width:100%; justify-content:space-between; border-radius:10px;}
 .grado-select.always .grado-select-pop{min-width:0; width:100%; max-width:none; z-index:65;}
+.grado-select.pop-up .grado-select-pop{top:auto; bottom:calc(100% + 6px);}
 
 /* ---------- Paginación ---------- */
 .pagination{display:flex; align-items:center; justify-content:space-between; gap:10px 16px; flex-wrap:wrap; padding:12px 20px; border-top:1px solid var(--line); background:#fff;}
