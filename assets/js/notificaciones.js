@@ -1,8 +1,9 @@
 // Pantalla Notificaciones — bandeja para todos los roles.
 import { api } from './api.js';
-import { esc, fmtDateTime, notifIcon, screenEls, toast, loading } from './utils.js';
+import { esc, fmtDateTime, notifIcon, screenEls, toast, loading, paginacion, clampPage } from './utils.js';
 
 let filtro = ''; // '' | 'no-leidas'
+const pag = { page: 1, limit: 10 };
 
 export async function render() {
   const { crumbs, actions, body } = screenEls('notificaciones');
@@ -18,15 +19,14 @@ export async function render() {
       toast(err.message, 'error');
     }
   });
-  loading(body);
-  try {
-    const query = { limit: 200 };
-    if (filtro === 'no-leidas') query.leida = 'false';
-    const res = await api('/notificaciones', { query });
-    const notifs = res.data || [];
+
+  function renderLista(notifs) {
     const chips = [['', 'Todas'], ['no-leidas', 'No leídas']].map(([v, label]) =>
       `<span class="chip ${filtro === v ? 'active' : ''}" data-f="${v}">${label}</span>`).join('');
-    const items = notifs.map((n) => {
+    const total = notifs.length;
+    pag.page = clampPage(pag.page, total, pag.limit);
+    const paginados = notifs.slice((pag.page - 1) * pag.limit, pag.page * pag.limit);
+    const items = paginados.map((n) => {
       const color = notifIcon(n.tipo_codigo);
       const unread = !n.leida;
       return `<div class="notif-item ${unread ? 'unread' : ''}" data-id="${n.id}" data-leida="${n.leida ? 1 : 0}">
@@ -41,9 +41,15 @@ export async function render() {
     body.innerHTML = `<div class="panel">
       <div class="filters">${chips}</div>
       <div class="panel-body" style="padding-top:0;">${items}</div>
+      <div id="pag-notificaciones"></div>
     </div>`;
+    paginacion(body.querySelector('#pag-notificaciones'), {
+      page: pag.page, limit: pag.limit, total,
+      onPage: (p, l) => { pag.page = p; pag.limit = l; renderLista(notifs); },
+    });
     body.querySelectorAll('.chip[data-f]').forEach((c) => c.addEventListener('click', () => {
       filtro = c.dataset.f;
+      pag.page = 1;
       render();
     }));
     body.querySelectorAll('.notif-item[data-id]').forEach((el) => {
@@ -62,6 +68,14 @@ export async function render() {
         }
       });
     });
+  }
+
+  loading(body);
+  try {
+    const query = { limit: 200 };
+    if (filtro === 'no-leidas') query.leida = 'false';
+    const res = await api('/notificaciones', { query });
+    renderLista(res.data || []);
   } catch (err) {
     body.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
   }
