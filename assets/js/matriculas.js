@@ -197,16 +197,7 @@ async function abrirFormMatricula() {
 
       <div class="field full" id="m-ee">
         <label>Estudiante *</label>
-        <div class="grado-select always" id="m-estudiante-sel">
-          <button type="button" class="grado-select-btn" id="m-estudiante-btn">
-            <span id="m-estudiante-label">Buscar estudiante…</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <div class="grado-select-pop">
-            <input class="grado-select-search" id="m-estudiante-search" placeholder="Buscar por nombre o apellido…">
-            <div class="grado-select-list" id="m-estudiante-list"></div>
-          </div>
-        </div>
+        <div id="m-estudiante-sel"></div>
       </div>
 
       <div class="field full" id="m-en" style="display:none">
@@ -218,16 +209,7 @@ async function abrirFormMatricula() {
           <div class="field full"><label>Email</label><input id="m-mail"></div>
           <div class="field full"><label>Dirección</label><input id="m-dir"></div>
           <div class="field full"><label>Tutor</label>
-            <div class="grado-select always" id="m-tutor-sel">
-              <button type="button" class="grado-select-btn" id="m-tutor-btn">
-                <span id="m-tutor-label">— Nuevo tutor —</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-              </button>
-              <div class="grado-select-pop">
-                <input class="grado-select-search" id="m-tutor-search" placeholder="Buscar tutor…">
-                <div class="grado-select-list" id="m-tutor-list"></div>
-              </div>
-            </div>
+            <div id="m-tutor-sel"></div>
           </div>
           <div class="field"><label>Tutor nuevo — nombre *</label><input id="m-tutor-nombre"></div>
           <div class="field"><label>Tutor nuevo — teléfono *</label><input id="m-tutor-tel"></div>
@@ -254,73 +236,25 @@ async function abrirFormMatricula() {
   body.querySelectorAll('.mini-tab').forEach((tab) => tab.addEventListener('click', () => cambiarTipo(tab.dataset.tipo)));
 
   // Select buscable de estudiantes existentes
-  const sel = body.querySelector('#m-estudiante-sel');
-  const btn = body.querySelector('#m-estudiante-btn');
-  const sSearch = body.querySelector('#m-estudiante-search');
-  const sList = body.querySelector('#m-estudiante-list');
-  const sLabel = body.querySelector('#m-estudiante-label');
-  const buildEstList = (filtro = '') => {
-    const f = filtro.trim().toLowerCase();
-    const opts = estudiantes.filter((e) => !f || `${e.nombre} ${e.apellido} ${e.grado_nombre || ''} ${e.seccion || ''}`.toLowerCase().includes(f));
-    sList.innerHTML = opts.map((e) => `
-      <div class="grado-opt ${estudianteSel && estudianteSel.id === e.id ? 'active' : ''}" data-id="${e.id}">
-        ${esc(e.nombre)} ${esc(e.apellido)}${e.grado_nombre ? `<span class="cell-sub" style="color:var(--ink-faint);font-size:11px;"> · ${esc(e.grado_nombre)}${esc(e.seccion || '')}</span>` : ''}
-      </div>`).join('') || '<div class="grado-opt empty">Sin resultados</div>';
-  };
-  buildEstList();
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const abrir = !sel.classList.contains('open');
-    sel.classList.toggle('open', abrir);
-    if (abrir) { sSearch.value = ''; buildEstList(); sSearch.focus(); }
-  });
-  sSearch.addEventListener('input', () => buildEstList(sSearch.value));
-  sList.addEventListener('click', (e) => {
-    const opt = e.target.closest('.grado-opt[data-id]');
-    if (!opt) return;
-    estudianteSel = estudiantes.find((es) => String(es.id) === opt.dataset.id);
-    sLabel.textContent = estudianteSel ? `${estudianteSel.nombre} ${estudianteSel.apellido}` : 'Buscar estudiante…';
-    sel.classList.remove('open');
-    buildEstList();
+  searchSelect({
+    el: body.querySelector('#m-estudiante-sel'),
+    options: estudiantes.map((e) => [e.id, `${e.nombre} ${e.apellido}${e.grado_nombre ? ' · ' + e.grado_nombre + (e.seccion || '') : ''}`]),
+    placeholder: 'Buscar estudiante…', searchPlaceholder: 'Buscar por nombre o apellido…',
+    onSelect: (v) => { estudianteSel = estudiantes.find((es) => String(es.id) === String(v)) || null; },
   });
 
   // Select buscable de tutores
-  const tutorSelBox = body.querySelector('#m-tutor-sel');
-  const tutorBtn = body.querySelector('#m-tutor-btn');
-  const tutorSearch = body.querySelector('#m-tutor-search');
-  const tutorList = body.querySelector('#m-tutor-list');
-  const tutorLabel = body.querySelector('#m-tutor-label');
   const showNew = () => {
     const nuevo = !tutorSel;
     body.querySelector('#m-tutor-nombre').closest('.field').style.display = nuevo ? 'flex' : 'none';
     body.querySelector('#m-tutor-tel').closest('.field').style.display = nuevo ? 'flex' : 'none';
   };
-  const buildTutorList = (filtro = '') => {
-    const f = filtro.trim().toLowerCase();
-    const opts = [['', '— Nuevo tutor —']]
-      .concat(tutores.map((t) => [String(t.id), `${t.nombre}${t.telefono ? ' · ' + t.telefono : ''}`]))
-      .filter(([, label]) => !f || label.toLowerCase().includes(f));
-    tutorList.innerHTML = opts.map(([id, label]) =>
-      `<div class="grado-opt ${(id === '' ? !tutorSel : tutorSel && String(tutorSel.id) === id) ? 'active' : ''}" data-tutor="${id}">${esc(label)}</div>`).join('') ||
-      '<div class="grado-opt empty">Sin resultados</div>';
-  };
-  buildTutorList();
   showNew();
-  tutorBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const abrir = !tutorSelBox.classList.contains('open');
-    tutorSelBox.classList.toggle('open', abrir);
-    if (abrir) { tutorSearch.value = ''; buildTutorList(); tutorSearch.focus(); }
-  });
-  tutorSearch.addEventListener('input', () => buildTutorList(tutorSearch.value));
-  tutorList.addEventListener('click', (e) => {
-    const opt = e.target.closest('.grado-opt[data-tutor]');
-    if (!opt) return;
-    tutorSel = opt.dataset.tutor === '' ? null : tutores.find((t) => String(t.id) === opt.dataset.tutor);
-    tutorLabel.textContent = tutorSel ? tutorSel.nombre : '— Nuevo tutor —';
-    tutorSelBox.classList.remove('open');
-    buildTutorList();
-    showNew();
+  searchSelect({
+    el: body.querySelector('#m-tutor-sel'),
+    options: tutores.map((t) => [t.id, `${t.nombre}${t.telefono ? ' · ' + t.telefono : ''}`]),
+    placeholder: '— Nuevo tutor —', searchPlaceholder: 'Buscar tutor…', allowEmpty: true,
+    onSelect: (v) => { tutorSel = v ? tutores.find((t) => String(t.id) === String(v)) || null : null; showNew(); },
   });
 
   // Selects buscables de grado y año lectivo
@@ -384,7 +318,6 @@ async function editarMatricula(m) {
   if (!m) return;
   const gs = await grados();
   let gradoId = String(m.grado_id);
-  const labelInicial = `${esc(m.grado)}${esc(m.seccion ? ' ' + m.seccion : '')}`;
 
   const body = openModal(`Editar matrícula #${m.id}`, `
     <div class="form-grid">
@@ -392,16 +325,7 @@ async function editarMatricula(m) {
         <div class="readonly-value">${esc(m.estudiante_nombre)} ${esc(m.estudiante_apellido)}</div>
       </div>
       <div class="field full"><label>Grado *</label>
-        <div class="grado-select always" id="e-grado-sel">
-          <button type="button" class="grado-select-btn" id="e-grado-btn">
-            <span id="e-grado-label">${labelInicial}</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <div class="grado-select-pop">
-            <input class="grado-select-search" id="e-grado-search" placeholder="Buscar grado…">
-            <div class="grado-select-list" id="e-grado-list"></div>
-          </div>
-        </div>
+        <div id="e-grado-sel"></div>
       </div>
       <div class="field"><label>Fecha de matrícula</label><input id="e-fecha" type="date" value="${esc((m.fecha_matricula || '').slice(0, 10))}"></div>
     </div>
@@ -410,36 +334,12 @@ async function editarMatricula(m) {
       <button class="btn primary" data-save>Guardar cambios</button>
     </div>`);
 
-  const sel = body.querySelector('#e-grado-sel');
-  const btn = body.querySelector('#e-grado-btn');
-  const search = body.querySelector('#e-grado-search');
-  const list = body.querySelector('#e-grado-list');
-  const label = body.querySelector('#e-grado-label');
-  const buildList = (filtro = '') => {
-    const f = filtro.trim().toLowerCase();
-    const opts = gs
-      .map((g) => [String(g.id), `${g.grado}${g.seccion ? ' ' + g.seccion : ''}`])
-      .filter(([, l]) => !f || l.toLowerCase().includes(f));
-    list.innerHTML = opts.map(([id, l]) =>
-      `<div class="grado-opt ${gradoId === id ? 'active' : ''}" data-id="${id}">${esc(l)}</div>`).join('') ||
-      '<div class="grado-opt empty">Sin resultados</div>';
-  };
-  buildList();
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const abrir = !sel.classList.contains('open');
-    sel.classList.toggle('open', abrir);
-    if (abrir) { search.value = ''; buildList(); search.focus(); }
-  });
-  search.addEventListener('input', () => buildList(search.value));
-  list.addEventListener('click', (e) => {
-    const opt = e.target.closest('.grado-opt[data-id]');
-    if (!opt) return;
-    gradoId = opt.dataset.id;
-    const g = gs.find((x) => String(x.id) === gradoId);
-    label.textContent = g ? `${g.grado}${g.seccion ? ' ' + g.seccion : ''}` : '';
-    sel.classList.remove('open');
-    buildList();
+  searchSelect({
+    el: body.querySelector('#e-grado-sel'),
+    options: gs.map((g) => [g.id, `${g.grado}${g.seccion ? ' ' + g.seccion : ''}`]),
+    placeholder: 'Seleccionar grado…', searchPlaceholder: 'Buscar grado…',
+    initial: gradoId,
+    onSelect: (v) => { gradoId = v; },
   });
 
   body.querySelector('[data-cancel]').addEventListener('click', closeModal);

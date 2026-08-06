@@ -246,12 +246,19 @@ export function searchSelect({ el, options = [], placeholder = 'Seleccionar…',
   };
   setBtn();
   build();
-  const estAltura = () => 62 + Math.min(list.children.length * 36, 220);
+  const MAX_LISTA = 220, POP_BASE = 68;
   const orientar = () => {
     const modal = el.closest('.modal');
+    const mr = modal ? modal.getBoundingClientRect() : null;
     const br = btn.getBoundingClientRect();
-    const abajo = modal ? modal.getBoundingClientRect().bottom - br.bottom : window.innerHeight - br.bottom;
-    el.classList.toggle('pop-up', abajo < estAltura());
+    const top = mr ? mr.top : 0;
+    const bottom = mr ? mr.bottom : window.innerHeight;
+    const abajo = Math.max(0, bottom - br.bottom - POP_BASE);
+    const arriba = Math.max(0, br.top - top - POP_BASE);
+    const up = abajo >= MAX_LISTA ? false : arriba >= MAX_LISTA ? true : arriba > abajo;
+    const alto = Math.min(MAX_LISTA, Math.max(48, up ? arriba : abajo));
+    list.style.maxHeight = alto + 'px';
+    el.classList.toggle('pop-up', up);
   };
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
